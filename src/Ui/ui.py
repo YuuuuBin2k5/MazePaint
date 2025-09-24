@@ -263,6 +263,156 @@ def draw_move_count(screen, x, y, font, count):
     text_surf = render_text_with_outline(f"Moves: {count}", font, WHITE, BLACK, 1)
     screen.blit(text_surf, (x, y))
 
+def draw_text_outline(screen, text, pos, text_color, outline_color, outline_width, center=False, font=None):
+    """Helper function để vẽ text với outline"""
+    if font is None:
+        font = pygame.font.Font(None, 24)
+    
+    # Tạo text surface
+    text_surf = font.render(text, True, text_color)
+    
+    # Tạo outline surface
+    outline_surf = font.render(text, True, outline_color)
+    
+    # Tính vị trí
+    if center:
+        x, y = pos
+        text_rect = text_surf.get_rect(center=(x, y))
+        pos = (text_rect.x, text_rect.y)
+    
+    # Vẽ outline bằng cách vẽ text ở các vị trí lân cận
+    for dx in range(-outline_width, outline_width + 1):
+        for dy in range(-outline_width, outline_width + 1):
+            if dx != 0 or dy != 0:
+                screen.blit(outline_surf, (pos[0] + dx, pos[1] + dy))
+    
+    # Vẽ text chính
+    screen.blit(text_surf, pos)
+
+def draw_text(screen, text, pos, color, center=False, font=None):
+    """Helper function để vẽ text đơn giản"""
+    if font is None:
+        font = pygame.font.Font(None, 24)
+    
+    text_surf = font.render(text, True, color)
+    
+    if center:
+        x, y = pos
+        text_rect = text_surf.get_rect(center=(x, y))
+        screen.blit(text_surf, text_rect)
+    else:
+        screen.blit(text_surf, pos)
+
+def flat_to_matrix(flat_list, rows, cols):
+    """Chuyển đổi list phẳng thành matrix 2D"""
+    matrix = []
+    for i in range(rows):
+        row = []
+        for j in range(cols):
+            idx = i * cols + j
+            if idx < len(flat_list):
+                row.append(flat_list[idx])
+            else:
+                row.append(0)
+        matrix.append(row)
+    return matrix
+
+def draw_matrix(screen, matrix, x, y, cell_width, cell_height, fonts, colors, tiles):
+    """Vẽ matrix mini maze"""
+    for i, row in enumerate(matrix):
+        for j, cell in enumerate(row):
+            rect = pygame.Rect(x + j * cell_width, y + i * cell_height, cell_width, cell_height)
+            if cell == 1:  # Wall
+                pygame.draw.rect(screen, colors.get('wall', (100, 100, 100)), rect)
+            else:  # Path
+                pygame.draw.rect(screen, colors.get('path', (50, 50, 50)), rect)
+
+def draw_history_panel(screen, history_groups, scroll_offset, panel_rect, close_rect, fonts, colors, tiles):
+    """Vẽ panel lịch sử theo nhóm, with ms time and layout.
+
+    `history_groups` expected to be an ordered dict or dict mapping
+    state_tuple -> {'rows':R, 'cols':C, 'results':[{'algorithm':..,'steps':..,'visited_count':..,'generated_count':..,'execution_time':..}, ...]}
+    """
+    # 1. Vẽ các thành phần chung của panel
+    pygame.draw.rect(screen, colors['bg'], panel_rect, border_radius=15)
+    pygame.draw.rect(screen, colors['border'], panel_rect, 3, border_radius=15)
+    draw_text_outline(screen, "Solve History", (panel_rect.centerx, panel_rect.top + 40),
+                      colors['title'], colors['black'], 2, center=True, font=fonts['state'])
+    pygame.draw.rect(screen, (200, 50, 50), close_rect, border_radius=5)
+    draw_text(screen, "X", close_rect.center, colors['white'], center=True, font=fonts['btn'])
+
+    # 2. Tạo vùng cắt và vẽ tiêu đề cho bảng
+    header_y = panel_rect.y + 85
+    content_y_start = header_y + 35
+    content_rect = pygame.Rect(panel_rect.x + 20, content_y_start, panel_rect.width - 40, panel_rect.bottom - content_y_start - 20)
+
+    # Định nghĩa vị trí X cho từng cột
+    table_x_start = panel_rect.x + 160
+    col_x = {
+        "algo": table_x_start,
+        "steps": table_x_start + 130,
+        "visited": table_x_start + 210,
+        "generated": table_x_start + 310,
+        "time": table_x_start + 430,
+    }
+
+    # Vẽ dòng tiêu đề của bảng
+    draw_text_outline(screen, "Algorithm", (col_x["algo"], header_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+    draw_text_outline(screen, "Steps", (col_x["steps"], header_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+    draw_text_outline(screen, "Visited", (col_x["visited"], header_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+    draw_text_outline(screen, "Generated", (col_x["generated"], header_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+    draw_text_outline(screen, "Time (ms)", (col_x["time"], header_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+
+    # Vẽ đường kẻ ngang dưới tiêu đề
+    pygame.draw.line(screen, colors['border'], (panel_rect.x + 20, header_y + 25), (panel_rect.right - 20, header_y + 25), 2)
+
+    # 3. Vẽ nội dung các hàng
+    screen.set_clip(content_rect)
+
+    if not history_groups:
+        draw_text_outline(screen, "No history yet.", panel_rect.center, colors['white'], colors['black'], 1, center=True, font=fonts['label'])
+    else:
+        y_cursor = content_rect.top - scroll_offset
+
+        group_padding, row_height, header_height = 40, 35, 110
+
+        # iterate in insertion order if dict-like, else iterate items
+        for state_tuple, group_data in history_groups.items():
+            group_height = header_height + (len(group_data['results']) * row_height) + group_padding
+
+            if y_cursor + group_height > content_rect.top and y_cursor < content_rect.bottom:
+                # Vẽ puzzle mini đại diện cho nhóm
+                rows, cols = group_data.get('rows', MAZE_ROWS), group_data.get('cols', MAZE_COLS)
+                matrix = flat_to_matrix(list(state_tuple), rows, cols) if isinstance(state_tuple, (list, tuple)) else flat_to_matrix(list(state_tuple), rows, cols)
+                puzzle_w, puzzle_h = 100, 100
+                puzzle_x, puzzle_y = content_rect.left + 10, y_cursor + 5
+
+                frame_rect = pygame.Rect(puzzle_x, puzzle_y, puzzle_w, puzzle_h)
+                padding = 2
+                grid_w, grid_h = puzzle_w - padding*2, puzzle_h - padding*2
+                cell_width, cell_height = max(8, grid_w // cols), max(8, grid_h // rows)
+                pygame.draw.rect(screen, colors['box'], frame_rect, border_radius=8)
+                draw_matrix(screen, matrix, puzzle_x + padding, puzzle_y + padding, cell_width, cell_height, fonts, colors, tiles)
+
+                # Vẽ bảng kết quả cho nhóm
+                for i, result in enumerate(group_data['results']):
+                    # Căn chỉnh vị trí Y của hàng đầu tiên ngang với puzzle mini
+                    row_y = puzzle_y + (i * row_height)
+
+                    draw_text_outline(screen, result.get('algorithm', result.get('method', 'N/A')), (col_x["algo"], row_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+                    draw_text_outline(screen, str(result.get('steps', result.get('steps', 0))), (col_x["steps"], row_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+                    draw_text_outline(screen, str(result.get('visited_count', result.get('visited', 'N/A'))), (col_x["visited"], row_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+                    draw_text_outline(screen, str(result.get('generated_count', result.get('states', 'N/A'))), (col_x["generated"], row_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+
+                    # Chuyển đổi giây sang mili giây (* 1000) và làm tròn
+                    exec_time = result.get('execution_time', result.get('time', 0.0))
+                    time_ms = exec_time * 1000
+                    draw_text_outline(screen, f"{time_ms:.1f}", (col_x["time"], row_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+
+            y_cursor += group_height
+
+    screen.set_clip(None)
+
 #===========================================================================
 # PLANET IMAGES - Ảnh hành tinh
 def init_planet_images():

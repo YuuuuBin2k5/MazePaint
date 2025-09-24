@@ -43,6 +43,9 @@ board_before_player_moves = None
 game_won = False
 solving_path = None
 history_list = []
+history_groups = {}  # Nhóm lịch sử theo maze state
+show_history_panel = False  # Trạng thái hiển thị panel
+history_scroll_offset = 0  # Scroll offset cho panel
 
 # Smooth movement variables
 player_visual_pos = [1, 1]  # Vị trí hiển thị (có thể ở giữa các ô)
@@ -109,6 +112,25 @@ while running:
             move_count = 0
             victory_frame = 0  # Reset victory frame counter
         
+        # Xử lý sự kiện cho history panel
+        if show_history_panel:
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                # Panel dimensions (cần phải match với draw code)
+                panel_rect = pygame.Rect(200, 50, 800, 600)
+                close_rect = pygame.Rect(panel_rect.right - 40, panel_rect.top + 10, 30, 30)
+                
+                # Click close button
+                if close_rect.collidepoint(event.pos):
+                    show_history_panel = False
+                # Click outside panel to close
+                elif not panel_rect.collidepoint(event.pos):
+                    show_history_panel = False
+            
+            # Scroll handling
+            elif event.type == pygame.MOUSEWHEEL:
+                history_scroll_offset -= event.y * 30  # Scroll speed
+                history_scroll_offset = max(0, history_scroll_offset)
+        
         if not solving_path and not game_won:
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 # NÚT MAP: Chuyển map
@@ -171,7 +193,23 @@ while running:
                             # Nếu có lời giải, lấy đường đi để bắt đầu tự động chạy
                             solving_path = result["path"]
                             
-                            # Lưu thông tin chi tiết vào lịch sử
+                            # Tạo state tuple cho grouping (flatten maze thành tuple)
+                            maze_state = tuple([cell for row in current_maze for cell in row])
+                            
+                            # Tạo result data với algorithm name
+                            result_data = result.copy()
+                            result_data['algorithm'] = algorithm
+                            
+                            # Group theo maze state
+                            if maze_state not in history_groups:
+                                history_groups[maze_state] = {
+                                    'rows': maze_rows,
+                                    'cols': maze_cols,
+                                    'results': []
+                                }
+                            history_groups[maze_state]['results'].append(result_data)
+                            
+                            # Lưu thông tin chi tiết vào lịch sử (để tương thích với code cũ)
                             history_list.append((
                                 f"N{map_names}",    # Lượt chơi hiện tại
                                 algorithm,              # Thuật toán đã dùng
@@ -179,6 +217,25 @@ while running:
                             ))
                         else:
                             # Nếu không có lời giải, vẫn lưu thông tin thất bại
+                            maze_state = tuple([cell for row in current_maze for cell in row])
+                            
+                            result_data = {
+                                'algorithm': algorithm,
+                                'steps': 0,
+                                'visited': 0,
+                                'states': 0,
+                                'time': 0.0,
+                                'success': False
+                            }
+                            
+                            if maze_state not in history_groups:
+                                history_groups[maze_state] = {
+                                    'rows': maze_rows,
+                                    'cols': maze_cols,
+                                    'results': []
+                                }
+                            history_groups[maze_state]['results'].append(result_data)
+                            
                             history_list.append((
                                 f"N{map_names}",
                                 algorithm,
@@ -204,7 +261,8 @@ while running:
 
                 # NÚT HISTORY
                 elif history_rect.collidepoint(event.pos):
-                    history_list.clear()
+                    show_history_panel = not show_history_panel
+                    history_scroll_offset = 0  # Reset scroll khi mở panel
 
         # Speed control buttons - có thể dùng mọi lúc, kể cả khi đang auto solve
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -439,6 +497,40 @@ while running:
     screen.blit(text_surface, text_rect)
 
     draw_move_count(screen, MOVE_COUNT_X, MOVE_COUNT_Y, font_small, move_count)
+    
+    # Draw history panel if visible
+    if show_history_panel:
+        # Panel và close button rects
+        panel_rect = pygame.Rect(200, 50, 800, 600)
+        close_rect = pygame.Rect(panel_rect.right - 40, panel_rect.top + 10, 30, 30)
+        
+        # Colors dictionary cho panel
+        colors = {
+            'bg': (30, 40, 60, 220),  # Background với alpha
+            'border': (100, 150, 200),
+            'title': WHITE,
+            'white': WHITE,
+            'black': BLACK,
+            'label': (200, 200, 200),
+            'box': (60, 80, 120),
+            'wall': (100, 100, 100),
+            'path': (50, 50, 50)
+        }
+        
+        # Fonts dictionary cho panel
+        fonts = {
+            'state': font_large,
+            'btn': font_small,
+            'label': font_small
+        }
+        
+        # Vẽ panel với semi-transparent background
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 128))  # Semi-transparent black
+        screen.blit(overlay, (0, 0))
+        
+        # Vẽ history panel
+        draw_history_panel(screen, history_groups, history_scroll_offset, panel_rect, close_rect, fonts, colors, None)
     
     if game_won:
         draw_cosmic_victory(screen, WINDOW_WIDTH, WINDOW_HEIGHT, victory_frame)
