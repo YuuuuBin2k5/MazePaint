@@ -2,14 +2,14 @@
 import pygame
 import copy
 from config import *
-from ui import *
-from spaceship import update_star_particles, draw_star_particles, ease_in_out_quart
+from Ui.ui import *
+from Ui.spaceship import update_star_particles, draw_star_particles, ease_in_out_quart
 from func_game import *
-from BFS import bfs_solve
-from DFS import dfs_solve
-from UCS import ucs_solve
-from Greedy import greedy_solve
-from Astar import astar_solve
+from Algorithm.BFS import bfs_solve
+from Algorithm.DFS import dfs_solve
+from Algorithm.UCS import ucs_solve
+from Algorithm.Greedy import greedy_solve
+from Algorithm.Astar import astar_solve
 from maps import *
 
 # --- KHỞI TẠO PYGAME VÀ CÁC THÀNH PHẦN ---
@@ -51,26 +51,21 @@ is_moving_smooth = False    # Có đang di chuyển mượt không
 movement_progress = 0.0     # Tiến độ di chuyển (0.0 -> 1.0)
 current_auto_direction = None  # Hướng di chuyển khi auto solve
 last_auto_direction = None  # Lưu direction cuối cùng để dùng khi smooth movement
-SMOOTH_MOVE_SPEED = 0.6    # Tốc độ chuyển động mượt mà (tăng để nhanh hơn khi auto solve)
-
 
 time_since_last_move = 0
 time_since_last_player_move = 0  # Thêm cooldown cho player
-SOLVER_MOVE_INTERVAL = 800  # Tốc độ mặc định (1x) - giống như manual với đầy đủ animation
-BASE_SOLVER_INTERVAL = 800  # Tốc độ cơ sở để tính toán multiple
-PLAYER_MOVE_INTERVAL = 180  # Tăng lên 180ms để có thời gian cho smooth movement
 
 # --- KHAI BÁO RECT CHO CÁC BUTTON ---
-map_rect = pygame.Rect(840, 100, 240, 60)
-player_rect = pygame.Rect(840, 320, 240, 60)
-solver_rect = pygame.Rect(840, 400, 240, 60)
-restart_rect = pygame.Rect(840, 480, 240, 60)
-history_rect = pygame.Rect(840, 560, 240, 60)
+map_rect = pygame.Rect(BUTTON_X, MAP_BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT)
+player_rect = pygame.Rect(BUTTON_X, PLAYER_BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT)
+solver_rect = pygame.Rect(BUTTON_X, SOLVER_BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT)
+restart_rect = pygame.Rect(BUTTON_X, RESTART_BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT)
+history_rect = pygame.Rect(BUTTON_X, HISTORY_BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT)
 
 # Speed control buttons
-speed_decrease_rect = pygame.Rect(840, 180, 50, 40)
-speed_increase_rect = pygame.Rect(1030, 180, 50, 40)
-speed_display_rect = pygame.Rect(900, 180, 120, 40)
+speed_decrease_rect = pygame.Rect(SPEED_DECREASE_X, SPEED_BUTTONS_Y, SPEED_BUTTON_WIDTH, SPEED_BUTTON_HEIGHT)
+speed_increase_rect = pygame.Rect(SPEED_INCREASE_X, SPEED_BUTTONS_Y, SPEED_BUTTON_WIDTH, SPEED_BUTTON_HEIGHT)
+speed_display_rect = pygame.Rect(SPEED_DISPLAY_X, SPEED_BUTTONS_Y, SPEED_DISPLAY_WIDTH, SPEED_BUTTON_HEIGHT)
 
 # Frame counter cho hiệu ứng
 frame = 0
@@ -417,11 +412,18 @@ while running:
     # Draw star particles on top of everything
     draw_star_particles(screen)
 
-    draw_button(screen, font_small, map_rect, DARK_BLUE, f"MAP: {map_names[current_map_index]}")
-    draw_button(screen, font_small, player_rect, DARK_BLUE, algorithm)
-    draw_button(screen, font_small, solver_rect, DARK_BLUE, "SOLVE")
+    # UI Buttons with 3D cosmic style
+    draw_button(screen, font_small, map_rect, DARK_BLUE, f"MAP: {map_names[current_map_index]}", "info")
+    draw_button(screen, font_small, player_rect, DARK_BLUE, algorithm, "info") 
+    draw_button(screen, font_small, solver_rect, DARK_BLUE, "SOLVE", "primary")
+    draw_button(screen, font_small, restart_rect, DARK_BLUE, "RESTART", "success")
+    draw_button(screen, font_small, history_rect, DARK_BLUE, "CLEAR HISTORY", "info")
+
+    # Speed control buttons with warning style  
+    draw_button(screen, font_small, speed_decrease_rect, DARK_BLUE, "-", "warning")
+    draw_button(screen, font_small, speed_increase_rect, DARK_BLUE, "+", "warning")
     draw_button(screen, font_small, restart_rect, DARK_BLUE, "RESTART")
-    draw_button(screen, font_small, history_rect, DARK_BLUE, "CLEAR HISTORY")
+    draw_button(screen, font_small, history_rect, DARK_BLUE, "HISTORY")
 
     # Speed control UI
     draw_button(screen, font_small, speed_decrease_rect, DARK_BLUE, "-")
@@ -436,7 +438,7 @@ while running:
     text_rect = text_surface.get_rect(center=speed_display_rect.center)
     screen.blit(text_surface, text_rect)
 
-    draw_move_count(screen, 840, 20, font_small, move_count)
+    draw_move_count(screen, MOVE_COUNT_X, MOVE_COUNT_Y, font_small, move_count)
     
     if game_won:
         draw_cosmic_victory(screen, WINDOW_WIDTH, WINDOW_HEIGHT, victory_frame)

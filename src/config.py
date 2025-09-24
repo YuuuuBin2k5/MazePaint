@@ -46,3 +46,49 @@ PLAYER_GLOW = (255, 150, 0, 60)     # Hiệu ứng glow cam cho player
 # -- CÀI ĐẶT NGƯỜI CHƠI --
 PLAYER_RADIUS = TILE_SIZE // 3
 
+# -- CÀI ĐẶT ANIMATION VÀ MOVEMENT --
+SMOOTH_MOVE_SPEED = 0.6    # Tốc độ chuyển động mượt mà (tăng để nhanh hơn khi auto solve)
+SOLVER_MOVE_INTERVAL = 800  # Tốc độ mặc định (1x) - giống như manual với đầy đủ animation
+BASE_SOLVER_INTERVAL = 800  # Tốc độ cơ sở để tính toán multiple
+PLAYER_MOVE_INTERVAL = 180  # Thời gian cooldown cho player movement
+
+# -- CÀI ĐẶT UI BUTTONS --
+BUTTON_WIDTH = 240
+BUTTON_HEIGHT = 60
+BUTTON_X = 840
+MAP_BUTTON_Y = 100
+PLAYER_BUTTON_Y = 320
+SOLVER_BUTTON_Y = 400
+RESTART_BUTTON_Y = 480
+HISTORY_BUTTON_Y = 560
+
+# Speed control buttons
+SPEED_BUTTON_WIDTH = 50
+SPEED_BUTTON_HEIGHT = 40
+SPEED_DECREASE_X = 840
+SPEED_INCREASE_X = 1030
+SPEED_DISPLAY_X = 900
+SPEED_DISPLAY_WIDTH = 120
+SPEED_BUTTONS_Y = 180
+
+# Move count display position
+MOVE_COUNT_X = 840
+MOVE_COUNT_Y = 20
+
+# -- CÀI ĐẶT SPACE EFFECTS --
+STARS_FAR_COUNT = 50
+STARS_MID_COUNT = 40
+STARS_NEAR_COUNT = 30
+MAX_TRAIL_LENGTH = 5  # Số lượng vết player trail tối đa
+
+# -- UI DIALOG SETTINGS --
+DIALOG_PADX = 20  # Padding cho radio button trong dialog
+DIALOG_PADY = 20  # Padding cho button trong dialog
+
+# -- UI RENDERING SETTINGS --
+TEXT_OUTLINE_WIDTH = 1  # Độ dày viền text
+BUTTON_SHADOW_ALPHA = 80  # Độ mờ shadow button (0-255)
+BUTTON_BORDER_RADIUS = 10  # Bo góc button
+HISTORY_Y_OFFSET = 25  # Khoảng cách dòng trong history
+PLANET_SPAWN_DELAY = 60  # Delay spawn hành tinh (frames)
+
