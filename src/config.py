@@ -44,6 +44,24 @@ PATH_GLOW = (100, 200, 255)        # Viền xanh sáng cho đường đã đi
 PATH_OVERLAY = (30, 100, 200, 180)  # Overlay xanh trong suốt
 UNVISITED_OVERLAY = (0, 0, 0, 100)  # Overlay đen mờ cho ô chưa đi
 PLAYER_GLOW = (255, 150, 0, 60)     # Hiệu ứng glow cam cho player
+
+# -- CÀI ĐẶT ÂM THANH --
+SOUND_ENABLED = True
+MASTER_VOLUME = 0.7  # Âm lượng chính (0.0 - 1.0)
+SFX_VOLUME = 0.5     # Âm lượng hiệu ứng âm thanh
+MUSIC_VOLUME = 0.3   # Âm lượng nhạc nền
+
+# Đường dẫn âm thanh
+SOUND_PATH = "./asset/sound/"
+SOUND_MOVE = SOUND_PATH + "move.mp3"          # Âm thanh di chuyển
+SOUND_WIN = SOUND_PATH + "victory.mp3"        # Âm thanh chiến thắng
+SOUND_BUTTON = SOUND_PATH + "button.mp3"      # Âm thanh nhấn nút
+SOUND_ALGORITHM_START = SOUND_PATH + "algorithm_start.mp3"  # Âm thanh bắt đầu thuật toán
+SOUND_ALGORITHM_STEP = SOUND_PATH + "step.mp3"              # Âm thanh mỗi bước thuật toán
+BACKGROUND_MUSIC = SOUND_PATH + "background.mp3"            # Nhạc nền
+VICTORY_MUSIC = SOUND_PATH + "victory.mp3"            # Nhạc chiến thắng (dài)
+VICTORY_PHASE3_SOUND = SOUND_PATH + "victory2.mp3"  # Âm thanh đặc biệt phase 3
+
 # -- CÀI ĐẶT NGƯỜI CHƠI --
 PLAYER_RADIUS = TILE_SIZE // 3
 

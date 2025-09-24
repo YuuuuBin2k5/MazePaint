@@ -15,6 +15,9 @@ from maps import *
 # Import cosmic selector
 from Ui.cosmic_selector import CosmicAlgorithmSelector
 
+# Import sound manager
+from sound_manager import sound_manager
+
 # --- KHỞI TẠO PYGAME VÀ CÁC THÀNH PHẦN ---
 pygame.init()
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
@@ -75,6 +78,10 @@ time_since_last_player_move = 0  # Thêm cooldown cho player
 
 # --- KHAI BÁO RECT CHO CÁC BUTTON ---
 map_rect = pygame.Rect(BUTTON_X, MAP_BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT)
+
+# --- KHỞI TẠO HỆ THỐNG ÂM THANH ---
+# Start background music
+sound_manager.play_music()
 player_rect = pygame.Rect(BUTTON_X, PLAYER_BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT)
 solver_rect = pygame.Rect(BUTTON_X, SOLVER_BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT)
 restart_rect = pygame.Rect(BUTTON_X, RESTART_BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT)
@@ -88,6 +95,7 @@ speed_display_rect = pygame.Rect(SPEED_DISPLAY_X, SPEED_BUTTONS_Y, SPEED_DISPLAY
 # Frame counter cho hiệu ứng
 frame = 0
 victory_frame = 0  # Frame counter riêng cho victory animation
+victory_phase3_sound_played = False  # Flag để đảm bảo âm thanh phase 3 chỉ phát 1 lần
 
 # --- VÒNG LẶP CHÍNH ---
 running = True
@@ -109,6 +117,7 @@ while running:
                     if result:
                         algorithm = result
                         show_algorithm_selector = False
+                        sound_manager.play_button_sound()  # Âm thanh chọn thuật toán
             elif event.type == pygame.MOUSEMOTION:
                 cosmic_selector.handle_mouse_motion(event.pos)
             elif event.type == pygame.MOUSEBUTTONDOWN:
@@ -117,6 +126,7 @@ while running:
                     if result:
                         algorithm = result
                         show_algorithm_selector = False
+                        sound_manager.play_button_sound()  # Âm thanh chọn thuật toán
         
         # Update and draw cosmic selector
         cosmic_selector.update()
@@ -157,6 +167,8 @@ while running:
             solving_path = None
             move_count = 0
             victory_frame = 0  # Reset victory frame counter
+            victory_phase3_sound_played = False  # Reset flag
+            sound_manager.switch_to_background_music()  # Quay lại nhạc nền
         
         # Xử lý sự kiện cho history panel
         if show_history_panel:
@@ -168,6 +180,7 @@ while running:
                 # Click close button
                 if close_rect.collidepoint(event.pos):
                     show_history_panel = False
+                    sound_manager.play_button_sound()  # Âm thanh đóng panel
                 # Click outside panel to close
                 elif not panel_rect.collidepoint(event.pos):
                     show_history_panel = False
@@ -181,6 +194,7 @@ while running:
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 # NÚT MAP: Chuyển map
                 if map_rect.collidepoint(event.pos):
+                    sound_manager.play_button_sound()  # Âm thanh chuyển map
                     current_map_index = (current_map_index + 1) % len(map_names)
                     current_maze = all_maps[map_names[current_map_index]]
                     # Reset inline
@@ -199,12 +213,15 @@ while running:
 
                 # NÚT CHỌN THUẬT TOÁN
                 elif player_rect.collidepoint(event.pos):
+                    sound_manager.play_button_sound()  # Âm thanh mở selector
                     show_algorithm_selector = True
 
                 # NÚT SOLVE
                 elif solver_rect.collidepoint(event.pos):
+                    sound_manager.play_button_sound()  # Âm thanh nhấn solve
                     # Chỉ chạy khi thuật toán không phải là "Player"
                     if algorithm != "Player":
+                        sound_manager.play_algorithm_start_sound()  # Âm thanh bắt đầu thuật toán
                         # 1. Reset trạng thái game về ban đầu để chuẩn bị giải
                         player_pos = [1, 1]
                         player_visual_pos = [1, 1]
@@ -290,6 +307,7 @@ while running:
 
                 # NÚT RESTART
                 elif restart_rect.collidepoint(event.pos):
+                    sound_manager.play_button_sound()  # Âm thanh restart
                     player_pos = [1, 1]
                     player_visual_pos = [1, 1]
                     player_target_pos = [1, 1]
@@ -307,6 +325,7 @@ while running:
 
                 # NÚT HISTORY
                 elif history_rect.collidepoint(event.pos):
+                    sound_manager.play_button_sound()  # Âm thanh mở history
                     show_history_panel = not show_history_panel
                     history_scroll_offset = 0  # Reset scroll khi mở panel
 
@@ -314,11 +333,13 @@ while running:
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             # NÚT GIẢM TỐC ĐỘ AUTO SOLVE
             if speed_decrease_rect.collidepoint(event.pos):
+                sound_manager.play_button_sound()  # Âm thanh điều chỉnh tốc độ
                 current_speed_index = max(0, current_speed_index - 1)  # Giảm index = chậm hơn
                 SOLVER_MOVE_INTERVAL = BASE_SOLVER_INTERVAL // speed_multipliers[current_speed_index]
 
             # NÚT TĂNG TỐC ĐỘ AUTO SOLVE
             elif speed_increase_rect.collidepoint(event.pos):
+                sound_manager.play_button_sound()  # Âm thanh điều chỉnh tốc độ
                 current_speed_index = min(len(speed_multipliers) - 1, current_speed_index + 1)  # Tăng index = nhanh hơn
                 SOLVER_MOVE_INTERVAL = BASE_SOLVER_INTERVAL // speed_multipliers[current_speed_index]
 
@@ -392,6 +413,7 @@ while running:
                     is_moving_smooth = True
                     movement_progress = 0.0
                     move_count += 1  # Chỉ tăng move_count khi có di chuyển thực sự
+                    sound_manager.play_move_sound()  # Âm thanh di chuyển thủ công
                     
                 time_since_last_player_move = 0  # Reset cooldown
                 
@@ -468,6 +490,9 @@ while running:
             # Reset victory frame counter khi vừa chiến thắng
             if game_won and not prev_game_won:
                 victory_frame = 0
+                victory_phase3_sound_played = False  # Reset flag khi bắt đầu victory
+                sound_manager.play_win_sound()  # Âm thanh chiến thắng ngắn
+                sound_manager.switch_to_victory_music()  # Chuyển sang nhạc chiến thắng
             
             # Reset direction nếu không còn path để đi
             if not solving_path:
@@ -515,6 +540,7 @@ while running:
                     is_moving_smooth = True
                     movement_progress = 0.0
                 move_count += 1
+                sound_manager.play_algorithm_step_sound()  # Âm thanh từng bước thuật toán
                 
                 # Chỉ kiểm tra win khi không còn solving_path và không đang smooth movement
                 if not solving_path and not is_moving_smooth:
@@ -600,6 +626,11 @@ while running:
         draw_history_panel(screen, history_groups, history_scroll_offset, panel_rect, close_rect, fonts, colors, None)
     
     if game_won:
+        # Kiểm tra và phát âm thanh phase 3 (sau frame 180)
+        if victory_frame >= 180 and not victory_phase3_sound_played:
+            sound_manager.play_victory_celebration_sound()
+            victory_phase3_sound_played = True
+            
         draw_cosmic_victory(screen, WINDOW_WIDTH, WINDOW_HEIGHT, victory_frame)
 
     pygame.display.flip()
