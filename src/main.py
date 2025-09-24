@@ -19,6 +19,7 @@ from Ui.cosmic_selector import CosmicAlgorithmSelector
 pygame.init()
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
 pygame.display.set_caption(WINDOW_TITLE)
+pygame.display.set_icon(pygame.image.load(ICON_PATH))
 font_large = pygame.font.Font(None, 74)
 font_small = pygame.font.Font(None, 28)
 clock = pygame.time.Clock()

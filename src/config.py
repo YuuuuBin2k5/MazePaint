@@ -2,6 +2,7 @@
 WINDOW_WIDTH = 1100
 WINDOW_HEIGHT = 640
 WINDOW_TITLE = "Maze Paint"
+ICON_PATH = "./asset/image/icon.png"
 FPS = 60
 
 # -- CÀI ĐẶT MÊ CUNG VÀ BOARD CỐ ĐỊNH --
