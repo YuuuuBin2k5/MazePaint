@@ -12,6 +12,9 @@ from Algorithm.Greedy import greedy_solve
 from Algorithm.Astar import astar_solve
 from maps import *
 
+# Import cosmic selector
+from Ui.cosmic_selector import CosmicAlgorithmSelector
+
 # --- KHỞI TẠO PYGAME VÀ CÁC THÀNH PHẦN ---
 pygame.init()
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
@@ -20,7 +23,16 @@ font_large = pygame.font.Font(None, 74)
 font_small = pygame.font.Font(None, 28)
 clock = pygame.time.Clock()
 
+# Khởi tạo cosmic selector
+cosmic_selector = CosmicAlgorithmSelector(WINDOW_WIDTH, WINDOW_HEIGHT)
+show_algorithm_selector = False
+
 # --- KHAI BÁO BIẾN TRẠNG THÁI ---
+# Speed control system - x1, x5, x10, x20
+speed_multipliers = [1, 5, 10, 20]
+current_speed_index = 0  # Bắt đầu với x1
+SOLVER_MOVE_INTERVAL = BASE_SOLVER_INTERVAL // speed_multipliers[current_speed_index]
+
 all_maps = {"LEVEL 1": LEVEL_ONE, "LEVEL 2": LEVEL_TWO, 
             "LEVEL 3": LEVEL_THREE, "LEVEL 4": LEVEL_FOUR,
             "LEVEL 5": LEVEL_FIVE, "LEVEL 6": LEVEL_SIX,
@@ -55,6 +67,8 @@ movement_progress = 0.0     # Tiến độ di chuyển (0.0 -> 1.0)
 current_auto_direction = None  # Hướng di chuyển khi auto solve
 last_auto_direction = None  # Lưu direction cuối cùng để dùng khi smooth movement
 
+# Smart Input Queue System - now imported from movement_queue.py
+# from movement_queue import movement_queue, add_movement_to_queue, get_next_movement, clear_movement_queue
 time_since_last_move = 0
 time_since_last_player_move = 0  # Thêm cooldown cho player
 
@@ -79,6 +93,37 @@ running = True
 while running:
     dt = clock.tick(FPS)
     frame += 1  # Tăng frame counter
+    
+    # === ALGORITHM SELECTOR ===
+    if show_algorithm_selector:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+                break
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    show_algorithm_selector = False
+                else:
+                    result = cosmic_selector.handle_key_press(event.key)
+                    if result:
+                        algorithm = result
+                        show_algorithm_selector = False
+            elif event.type == pygame.MOUSEMOTION:
+                cosmic_selector.handle_mouse_motion(event.pos)
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:  # Left click
+                    result = cosmic_selector.handle_mouse_click(event.pos)
+                    if result:
+                        algorithm = result
+                        show_algorithm_selector = False
+        
+        # Update and draw cosmic selector
+        cosmic_selector.update()
+        cosmic_selector.draw(screen)
+        pygame.display.flip()
+        continue  # Skip main game logic when selector is active
+    
+    # === MAIN GAME LOGIC ===
     
     # Tăng victory frame counter nếu đang chiến thắng
     if game_won:
@@ -153,9 +198,7 @@ while running:
 
                 # NÚT CHỌN THUẬT TOÁN
                 elif player_rect.collidepoint(event.pos):
-                    algo = ask_algorithm()
-                    if algo:
-                        algorithm = algo
+                    show_algorithm_selector = True
 
                 # NÚT SOLVE
                 elif solver_rect.collidepoint(event.pos):
@@ -205,6 +248,7 @@ while running:
                                 history_groups[maze_state] = {
                                     'rows': maze_rows,
                                     'cols': maze_cols,
+                                    'maze': [row[:] for row in current_maze],  # Lưu maze structure
                                     'results': []
                                 }
                             history_groups[maze_state]['results'].append(result_data)
@@ -232,6 +276,7 @@ while running:
                                 history_groups[maze_state] = {
                                     'rows': maze_rows,
                                     'cols': maze_cols,
+                                    'maze': [row[:] for row in current_maze],  # Lưu maze structure
                                     'results': []
                                 }
                             history_groups[maze_state]['results'].append(result_data)
@@ -268,65 +313,86 @@ while running:
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             # NÚT GIẢM TỐC ĐỘ AUTO SOLVE
             if speed_decrease_rect.collidepoint(event.pos):
-                SOLVER_MOVE_INTERVAL = min(SOLVER_MOVE_INTERVAL + 100, 4000)  # Tăng interval = chậm hơn, max 4000ms (0.2x)
+                current_speed_index = max(0, current_speed_index - 1)  # Giảm index = chậm hơn
+                SOLVER_MOVE_INTERVAL = BASE_SOLVER_INTERVAL // speed_multipliers[current_speed_index]
 
             # NÚT TĂNG TỐC ĐỘ AUTO SOLVE
             elif speed_increase_rect.collidepoint(event.pos):
-                SOLVER_MOVE_INTERVAL = max(SOLVER_MOVE_INTERVAL - 100, 100)   # Giảm interval = nhanh hơn, min 100ms (8x)
+                current_speed_index = min(len(speed_multipliers) - 1, current_speed_index + 1)  # Tăng index = nhanh hơn
+                SOLVER_MOVE_INTERVAL = BASE_SOLVER_INTERVAL // speed_multipliers[current_speed_index]
 
        
-    # Xử lý di chuyển bằng bàn phím - chỉ khi không auto solve
-    if not game_won and not solving_path:
-        # Xử lý input chỉ khi không đang di chuyển mượt
-        if not is_moving_smooth:
-            # Cập nhật thời gian di chuyển
-            time_since_last_player_move += dt
+    # === SMART INPUT HANDLING ===
+    # Xử lý input và thêm vào queue (luôn luôn, không cần chờ movement complete)
+    if not game_won:
+        current_time = pygame.time.get_ticks()
+        
+        # Kiểm tra xem có phím di chuyển nào được nhấn không
+        movement_key_pressed = (keys[pygame.K_UP] or keys[pygame.K_w] or 
+                              keys[pygame.K_DOWN] or keys[pygame.K_s] or 
+                              keys[pygame.K_LEFT] or keys[pygame.K_a] or 
+                              keys[pygame.K_RIGHT] or keys[pygame.K_d])
+        
+        # Nếu đang giải thuật toán và có phím di chuyển được nhấn thì bỏ qua
+        if solving_path and movement_key_pressed:
+            pass  # Không xử lý input khi đang giải thuật toán
+        elif not solving_path:  # Chỉ xử lý input khi không đang giải thuật toán
+            # Nếu có phím di chuyển được nhấn và algorithm không phải "Player" thì chuyển về Player
+            if movement_key_pressed and algorithm != "Player":
+                algorithm = "Player"
             
-            # Kiểm tra phím liên tục cho di chuyển mượt mà
-            if time_since_last_player_move >= PLAYER_MOVE_INTERVAL:
-                # Kiểm tra phím di chuyển - chuyển thành uppercase cho move_player
-                move_direction = None
-                if keys[pygame.K_UP] or keys[pygame.K_w]:
-                    move_direction = "UP"
-                elif keys[pygame.K_DOWN] or keys[pygame.K_s]:
-                    move_direction = "DOWN" 
-                elif keys[pygame.K_LEFT] or keys[pygame.K_a]:
-                    move_direction = "LEFT"
-                elif keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-                    move_direction = "RIGHT"
+            # Detect new key presses and add to queue
+            if keys[pygame.K_UP] or keys[pygame.K_w]:
+                add_movement_to_queue("UP", current_time)
+            elif keys[pygame.K_DOWN] or keys[pygame.K_s]:
+                add_movement_to_queue("DOWN", current_time)
+            elif keys[pygame.K_LEFT] or keys[pygame.K_a]:
+                add_movement_to_queue("LEFT", current_time)
+            elif keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+                add_movement_to_queue("RIGHT", current_time)
+    
+    # === MOVEMENT EXECUTION ===
+    # Xử lý di chuyển từ queue - chỉ khi không đang di chuyển
+    if not game_won and not solving_path and not is_moving_smooth:
+        # Cập nhật thời gian di chuyển
+        time_since_last_player_move += dt
+        
+        # Kiểm tra có thể thực hiện movement tiếp theo
+        if time_since_last_player_move >= PLAYER_MOVE_INTERVAL:
+            move_direction = get_next_movement()  # Lấy từ queue thay vì check keys
+            
+            # Di chuyển nếu có hướng từ queue
+            if move_direction:
+                # Tối ưu: chỉ backup board khi thực sự cần
+                if board_before_player_moves is None:
+                    board_before_player_moves = (copy.deepcopy(player_pos), [row[:] for row in painted_tiles])
                 
-                # Di chuyển nếu có hướng
-                if move_direction:
-                    # Tối ưu: chỉ backup board khi thực sự cần
-                    if board_before_player_moves is None:
-                        board_before_player_moves = (copy.deepcopy(player_pos), [row[:] for row in painted_tiles])
+                old_pos = player_pos[:]  # Lưu vị trí cũ để check thay đổi
+                
+                # Chỉ tính toán vị trí mới mà không tô màu ngay
+                row, col = player_pos[0], player_pos[1]
+                dr, dc = 0, 0
+                if move_direction == "UP": dr = -1
+                elif move_direction == "DOWN": dr = 1
+                elif move_direction == "LEFT": dc = -1
+                elif move_direction == "RIGHT": dc = 1
+                
+                # Tính toán vị trí mới mà không tô màu
+                while (0 <= row + dr < maze_rows and 0 <= col + dc < maze_cols and 
+                       current_maze[row + dr][col + dc] == PATH):
+                    row += dr
+                    col += dc
+                
+                new_pos = [row, col]
+                
+                # CHỈ tính move_count khi thực sự di chuyển được ít nhất 1 ô
+                if old_pos != new_pos:
+                    player_target_pos = new_pos[:]
+                    is_moving_smooth = True
+                    movement_progress = 0.0
+                    move_count += 1  # Chỉ tăng move_count khi có di chuyển thực sự
                     
-                    old_pos = player_pos[:]  # Lưu vị trí cũ để check thay đổi
-                    
-                    # Chỉ tính toán vị trí mới mà không tô màu ngay
-                    row, col = player_pos[0], player_pos[1]
-                    dr, dc = 0, 0
-                    if move_direction == "UP": dr = -1
-                    elif move_direction == "DOWN": dr = 1
-                    elif move_direction == "LEFT": dc = -1
-                    elif move_direction == "RIGHT": dc = 1
-                    
-                    # Tính toán vị trí mới mà không tô màu
-                    while (0 <= row + dr < maze_rows and 0 <= col + dc < maze_cols and 
-                           current_maze[row + dr][col + dc] == PATH):
-                        row += dr
-                        col += dc
-                    
-                    new_pos = [row, col]
-                    
-                    # Nếu position thay đổi, bắt đầu smooth movement
-                    if old_pos != new_pos:
-                        player_target_pos = new_pos[:]
-                        is_moving_smooth = True
-                        movement_progress = 0.0
-                        
-                    time_since_last_player_move = 0  # Reset cooldown
-                    move_count += 1
+                time_since_last_player_move = 0  # Reset cooldown
                 
      # Xử lý smooth movement - áp dụng cho cả manual và auto solve
     if is_moving_smooth:
@@ -487,9 +553,9 @@ while running:
     draw_button(screen, font_small, speed_decrease_rect, DARK_BLUE, "-")
     draw_button(screen, font_small, speed_increase_rect, DARK_BLUE, "+")
     
-    # Speed display - tính dựa trên BASE_SOLVER_INTERVAL
-    speed_multiplier = BASE_SOLVER_INTERVAL / SOLVER_MOVE_INTERVAL
-    speed_text = f"Speed: {speed_multiplier:.1f}x"  # Hiển thị tốc độ với 1 chữ số thập phân
+    # Speed display - sử dụng speed_multipliers array
+    current_multiplier = speed_multipliers[current_speed_index]
+    speed_text = f"x{current_multiplier}"  # Hiển thị đơn giản: x1, x5, x10, x20
     pygame.draw.rect(screen, DARK_BLUE, speed_display_rect)
     pygame.draw.rect(screen, WHITE, speed_display_rect, 2)
     text_surface = font_small.render(speed_text, True, WHITE)
@@ -501,7 +567,7 @@ while running:
     # Draw history panel if visible
     if show_history_panel:
         # Panel và close button rects
-        panel_rect = pygame.Rect(200, 50, 800, 600)
+        panel_rect = pygame.Rect(110, 20, 900, 580)
         close_rect = pygame.Rect(panel_rect.right - 40, panel_rect.top + 10, 30, 30)
         
         # Colors dictionary cho panel

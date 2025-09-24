@@ -21,9 +21,52 @@ def draw_cosmic_victory(screen, width, height, frame):
         b = int(15 * (1 - ratio) + 45 * ratio)
         pygame.draw.line(screen, (r, g, b), (0, y), (width, y))
 
-    # 2. Distant Stars
-    random.seed(42)
-    for _ in range(60):
+    # 2. Background Stars Field - Like cosmic_selector with moving stars (reduced amount)
+    # Create and update moving background stars like cosmic_selector
+    if not hasattr(draw_cosmic_victory, 'background_stars'):
+        draw_cosmic_victory.background_stars = []
+        random.seed(42)
+        # Initialize 80 moving background stars (reduced from 150)
+        for _ in range(80):
+            x = random.randint(0, width)
+            y = random.randint(0, height)
+            size = random.randint(1, 3)
+            speed = random.uniform(0.2, 1.5)  # Moving speed like cosmic_selector
+            brightness = random.randint(80, 255)
+            draw_cosmic_victory.background_stars.append([x, y, size, speed, brightness])
+    
+    # Update moving background stars like cosmic_selector
+    for star in draw_cosmic_victory.background_stars:
+        star[0] -= star[3]  # Move left like cosmic_selector
+        if star[0] < 0:
+            star[0] = width + 10
+            star[1] = random.randint(0, height)
+    
+    # Draw moving background stars with twinkling like cosmic_selector
+    for star in draw_cosmic_victory.background_stars:
+        x, y, size, speed, brightness = star
+        # Add twinkling effect like cosmic_selector
+        twinkle = math.sin(frame * 0.1 + x * 0.01) * 30
+        actual_brightness = max(50, min(255, brightness + twinkle))
+        color = (actual_brightness, actual_brightness, actual_brightness)
+        
+        if size == 1:
+            if 0 <= int(x) < width and 0 <= int(y) < height:
+                screen.set_at((int(x), int(y)), color)
+        else:
+            pygame.draw.circle(screen, color, (int(x), int(y)), size)
+            # Add cross for bigger stars like cosmic_selector
+            if size >= 2:
+                pygame.draw.line(screen, color, 
+                               (int(x-size-1), int(y)), 
+                               (int(x+size+1), int(y)), 1)
+                pygame.draw.line(screen, color, 
+                               (int(x), int(y-size-1)), 
+                               (int(x), int(y+size+1)), 1)
+
+    # 2.1. Additional Distant Twinkling Stars (reduced amount)
+    random.seed(43)
+    for _ in range(30):  # Reduced from 60
         x = random.randint(0, width)
         y = random.randint(0, height)
         brightness = random.uniform(0.4, 0.8)
@@ -33,6 +76,102 @@ def draw_cosmic_victory(screen, width, height, frame):
         star_surf = pygame.Surface((3, 3), pygame.SRCALPHA)
         pygame.draw.circle(star_surf, (*color, alpha), (1, 1), 1)
         screen.blit(star_surf, (x-1, y-1))
+
+    # 2.3. Flying Stars - Stars like in cosmic_selector style (reduced amount)
+    random.seed(33)  # Different seed for flying stars
+    for i in range(8):  # Reduced from 12 to 8 flying stars
+        # Each star has different timing and path
+        star_time = (frame + i * 35) * 0.018  # Offset timing for each star
+        
+        # Calculate flying star position with looping
+        progress = (star_time % 5.0) / 5.0  # Loop every 5 seconds worth of frames
+        
+        if progress < 0.9:  # Show for 90% of the cycle
+            # Stars fly from right to left across the sky
+            start_x = width + 30
+            end_x = -30
+            fly_x = start_x + (end_x - start_x) * progress
+            
+            # Different heights for different stars
+            heights = []
+            for j in range(8):  # Changed from 12 to 8
+                heights.append(height * (0.1 + (j * 0.1) % 0.8))  # Distribute across screen
+            fly_y = heights[i]
+            
+            # Add gentle wave motion
+            wave_offset = 12 * math.sin(progress * math.pi * 2.5 + i * 0.8)
+            fly_y += wave_offset
+            
+            if -10 <= fly_x <= width + 10 and 0 <= fly_y <= height:
+                # Flying star properties like cosmic_selector
+                star_size = random.choice([1, 2, 3])  # Mix of sizes like cosmic_selector
+                
+                # Add twinkling effect like cosmic_selector
+                twinkle = math.sin(frame * 0.1 + fly_x * 0.01 + i) * 30
+                base_brightness = random.randint(100, 255)
+                actual_brightness = max(50, min(255, base_brightness + twinkle))
+                color = (actual_brightness, actual_brightness, actual_brightness)
+                
+                # Draw star like cosmic_selector
+                if star_size == 1:
+                    if 0 <= int(fly_x) < width and 0 <= int(fly_y) < height:
+                        screen.set_at((int(fly_x), int(fly_y)), color)
+                else:
+                    pygame.draw.circle(screen, color, (int(fly_x), int(fly_y)), star_size)
+                    # Add cross for bigger stars like cosmic_selector
+                    if star_size >= 2:
+                        pygame.draw.line(screen, color, 
+                                       (int(fly_x-star_size-1), int(fly_y)), 
+                                       (int(fly_x+star_size+1), int(fly_y)), 1)
+                        pygame.draw.line(screen, color, 
+                                       (int(fly_x), int(fly_y-star_size-1)), 
+                                       (int(fly_x), int(fly_y+star_size+1)), 1)
+
+    # 2.5. Shooting Stars - Similar to cosmic_selector style
+    # Create shooting stars data if not exists (simulate cosmic_selector shooting stars)
+    if not hasattr(draw_cosmic_victory, 'shooting_stars'):
+        draw_cosmic_victory.shooting_stars = []
+        # Initialize shooting stars
+        for _ in range(4):
+            x = width + random.randint(50, 200)
+            y = random.randint(50, height - 50)
+            speed = random.uniform(3, 6)
+            length = random.randint(30, 60)
+            brightness = random.randint(180, 255)
+            draw_cosmic_victory.shooting_stars.append([x, y, speed, length, brightness])
+    
+    # Update and draw shooting stars (cosmic_selector style)
+    for shooting_star in draw_cosmic_victory.shooting_stars[:]:
+        shooting_star[0] -= shooting_star[2]  # Move left
+        shooting_star[1] += shooting_star[2] * 0.3  # Slight downward angle
+        
+        # Remove and recreate shooting star if off screen
+        if shooting_star[0] < -shooting_star[3]:
+            draw_cosmic_victory.shooting_stars.remove(shooting_star)
+            # Add new shooting star
+            x = width + random.randint(50, 200)
+            y = random.randint(50, height - 50)
+            speed = random.uniform(3, 6)
+            length = random.randint(30, 60)
+            brightness = random.randint(180, 255)
+            draw_cosmic_victory.shooting_stars.append([x, y, speed, length, brightness])
+    
+    # Draw shooting stars with trail (cosmic_selector style)
+    for shooting_star in draw_cosmic_victory.shooting_stars:
+        x, y, speed, length, brightness = shooting_star
+        # Draw trail
+        for i in range(length):
+            trail_x = x + i * 2
+            trail_y = y - i * 0.6
+            trail_brightness = max(0, brightness - i * 4)
+            if 0 <= trail_x <= width and 0 <= trail_y <= height and trail_brightness > 0:
+                trail_color = (trail_brightness, trail_brightness // 2, trail_brightness // 3)
+                if i < 5:  # Bright head
+                    pygame.draw.circle(screen, (255, 255, 255), 
+                                     (int(trail_x), int(trail_y)), 2)
+                else:  # Fading trail
+                    if int(trail_x) >= 0 and int(trail_x) < width and int(trail_y) >= 0 and int(trail_y) < height:
+                        screen.set_at((int(trail_x), int(trail_y)), trail_color)
 
     if frame < 80:  # PHASE 1: SPACESHIP JOURNEY ANIMATION
         # 3. Draw planets at fixed positions for spaceship to fly through (reduced to 3 planets)
@@ -304,6 +443,106 @@ def draw_cosmic_victory(screen, width, height, frame):
     else:  # PHASE 3: VICTORY DISPLAY (after frame 180)
         victory_frame = frame - 180  # Reset frame counter for victory phase
         
+        # 2.6. Enhanced Background Stars for Victory - Moderate amount for celebration
+        if not hasattr(draw_cosmic_victory, 'victory_background_stars'):
+            draw_cosmic_victory.victory_background_stars = []
+            # Initialize moderate background stars for victory celebration (100 stars)
+            random.seed(99)
+            for _ in range(100):  # Reduced from 160 to 100
+                x = random.randint(0, width)
+                y = random.randint(0, height)
+                size = random.randint(1, 3)  # Keep same sizes as phase 1&2
+                speed = random.uniform(0.3, 1.8)  # Slightly faster for victory
+                brightness = random.randint(120, 255)  # Bit brighter for victory
+                draw_cosmic_victory.victory_background_stars.append([x, y, size, speed, brightness])
+        
+        # Update moving victory background stars like cosmic_selector
+        for star in draw_cosmic_victory.victory_background_stars:
+            star[0] -= star[3]  # Move left like cosmic_selector
+            if star[0] < 0:
+                star[0] = width + 10
+                star[1] = random.randint(0, height)
+        
+        # Draw enhanced moving background stars for victory
+        for star in draw_cosmic_victory.victory_background_stars:
+            x, y, size, speed, brightness = star
+            # Enhanced twinkling effect for victory
+            twinkle = math.sin(victory_frame * 0.12 + x * 0.01) * 35  # Bit more twinkle
+            actual_brightness = max(70, min(255, brightness + twinkle))
+            
+            # Victory star colors - mostly white with occasional golden
+            if (int(x + y + victory_frame // 15)) % 6 == 0:  # Less golden stars (1/6 instead of 1/4)
+                color = (actual_brightness, int(actual_brightness * 0.95), int(actual_brightness * 0.8))
+            else:  # White stars
+                color = (actual_brightness, actual_brightness, actual_brightness)
+            
+            if size == 1:
+                if 0 <= int(x) < width and 0 <= int(y) < height:
+                    screen.set_at((int(x), int(y)), color)
+            else:
+                pygame.draw.circle(screen, color, (int(x), int(y)), size)
+                # Cross for victory stars like cosmic_selector
+                if size >= 2:
+                    pygame.draw.line(screen, color, 
+                                   (int(x-size-1), int(y)), 
+                                   (int(x+size+1), int(y)), 1)
+                    pygame.draw.line(screen, color, 
+                                   (int(x), int(y-size-1)), 
+                                   (int(x), int(y+size+1)), 1)
+        
+        # 2.7. Victory Shooting Stars - Enhanced cosmic_selector style for victory
+        # Create victory shooting stars data if not exists
+        if not hasattr(draw_cosmic_victory, 'victory_shooting_stars'):
+            draw_cosmic_victory.victory_shooting_stars = []
+            # Initialize more shooting stars for victory celebration
+            for _ in range(6):
+                x = width + random.randint(50, 200)
+                y = random.randint(30, height - 30)
+                speed = random.uniform(4, 8)  # Faster for victory
+                length = random.randint(40, 80)  # Longer trails for victory
+                brightness = random.randint(200, 255)  # Brighter for victory
+                draw_cosmic_victory.victory_shooting_stars.append([x, y, speed, length, brightness])
+        
+        # Update and draw victory shooting stars
+        for shooting_star in draw_cosmic_victory.victory_shooting_stars[:]:
+            shooting_star[0] -= shooting_star[2]  # Move left
+            shooting_star[1] += shooting_star[2] * 0.4  # Slightly more downward for variety
+            
+            # Remove and recreate shooting star if off screen
+            if shooting_star[0] < -shooting_star[3]:
+                draw_cosmic_victory.victory_shooting_stars.remove(shooting_star)
+                # Add new victory shooting star
+                x = width + random.randint(50, 200)
+                y = random.randint(30, height - 30)
+                speed = random.uniform(4, 8)
+                length = random.randint(40, 80)
+                brightness = random.randint(200, 255)
+                draw_cosmic_victory.victory_shooting_stars.append([x, y, speed, length, brightness])
+        
+        # Draw victory shooting stars with enhanced trail
+        for shooting_star in draw_cosmic_victory.victory_shooting_stars:
+            x, y, speed, length, brightness = shooting_star
+            # Draw trail with victory colors
+            for i in range(length):
+                trail_x = x + i * 2.2  # Slightly wider spacing for victory
+                trail_y = y - i * 0.7
+                trail_brightness = max(0, brightness - i * 3)  # Slower fade for victory
+                if 0 <= trail_x <= width and 0 <= trail_y <= height and trail_brightness > 0:
+                    if i < 8:  # Bigger bright head for victory
+                        # Victory colors - golden/white
+                        head_color = (255, 255, 200) if i < 3 else (255, 255, 255)
+                        pygame.draw.circle(screen, head_color, 
+                                         (int(trail_x), int(trail_y)), 2)
+                    else:  # Enhanced fading trail with golden tint
+                        golden_factor = min(1.0, trail_brightness / 200.0)
+                        trail_color = (
+                            trail_brightness, 
+                            int(trail_brightness * 0.8 * golden_factor), 
+                            int(trail_brightness * 0.4)
+                        )
+                        if int(trail_x) >= 0 and int(trail_x) < width and int(trail_y) >= 0 and int(trail_y) < height:
+                            screen.set_at((int(trail_x), int(trail_y)), trail_color)
+        
         # 3. Background cosmic effects (lighter than before)
         # Black hole in background
         black_hole_radius = 30 + 8 * math.sin(victory_frame * 0.05)
@@ -413,7 +652,7 @@ def draw_cosmic_victory(screen, width, height, frame):
             pulse_scale = 0.03 * math.sin(victory_frame * 0.08)  # Reduced from 0.1 to 0.03, slower frequency
             scale_pulse = base_scale + pulse_scale
             
-            victory_text = font_large.render("VICTORY!", True, (255, 255, 200))
+            victory_text = font_large.render("YOU WIN!", True, (255, 255, 200))
             cosmic_text = pygame.transform.rotozoom(victory_text, 0, scale_pulse)
             text_rect = cosmic_text.get_rect(center=(center[0], center[1] + 20))
             
@@ -443,7 +682,7 @@ def draw_cosmic_victory(screen, width, height, frame):
             # 6. Instruction text - appears after victory text is fully visible
             if text_progress >= 1.0:
                 small_font = pygame.font.SysFont("Arial", 28, bold=False)
-                restart_text = "Click anywhere or press RESTART button to play again"
+                restart_text = "Click anywhere to play again"
                 
                 instruction_alpha = int(200 + 55 * math.sin(victory_frame * 0.12))
                 

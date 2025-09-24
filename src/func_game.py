@@ -35,6 +35,48 @@ def check_win_condition(maze, painted_tiles):
     return True
 
 def ask_algorithm():
+    """
+    Sử dụng cosmic selector - integrated với main game
+    """
+    return "cosmic_selector"  # Signal để main.py xử lý
+
+def ask_algorithm_cosmic():
+    """
+    Sử dụng cosmic selector - tạm thời disable
+    """
+    import pygame
+    from Ui.cosmic_selector import cosmic_algorithm_selector
+    
+    # Sử dụng screen và clock từ main module nếu có
+    try:
+        # Import từ main để sử dụng screen và clock đã có
+        import main
+        screen = pygame.display.get_surface()
+        clock = pygame.time.Clock()
+        
+        if screen is None:
+            # Fallback nếu không có screen
+            pygame.init()
+            screen = pygame.display.set_mode((1100, 640))
+            pygame.display.set_caption("Algorithm Selector")
+            clock = pygame.time.Clock()
+        
+        result = cosmic_algorithm_selector(screen, clock)
+        return result if result else "Player"  # Default to Player if cancelled
+        
+    except Exception as e:
+        print(f"Error with cosmic selector, falling back to tkinter: {e}")
+        # Fallback to original tkinter version
+        return ask_algorithm_tkinter()
+
+def ask_algorithm_tkinter():
+    """
+    Original tkinter version as fallback
+    """
+def ask_algorithm_tkinter():
+    """
+    Original tkinter version as fallback
+    """
     root = tk.Tk()
     root.withdraw()  # ẩn cửa sổ chính
 
@@ -75,3 +117,64 @@ def ask_algorithm():
     dialog.wait_window()
     root.destroy()
     return result["algo"]
+
+# === SMART MOVEMENT QUEUE SYSTEM ===
+"""
+Hệ thống queue thông minh cho xử lý input di chuyển
+- Chống spam input
+- Hỗ trợ smooth movement  
+- Buffer input để phản hồi nhanh
+"""
+
+# Movement queue globals
+movement_queue = []  # Queue để lưu các movement commands
+MAX_QUEUE_SIZE = 2   # Tối đa 2 moves trong queue (current + next)
+last_input_time = 0  # Thời gian input cuối cùng
+INPUT_BUFFER_TIME = 50  # ms - thời gian buffer để detect spam
+
+def add_movement_to_queue(direction, current_time):
+    """Thêm movement vào queue với logic thông minh"""
+    global movement_queue, last_input_time
+    
+    # Kiểm tra spam input (nếu input quá nhanh, ignore)
+    if current_time - last_input_time < INPUT_BUFFER_TIME:
+        return
+    
+    # Nếu queue đầy, remove oldest hoặc override nếu cùng direction
+    if len(movement_queue) >= MAX_QUEUE_SIZE:
+        # Nếu direction cuối cùng giống với input mới, ignore
+        if movement_queue[-1] == direction:
+            return
+        # Override direction cuối cùng trong queue
+        movement_queue[-1] = direction
+    else:
+        # Thêm vào queue nếu chưa đầy
+        movement_queue.append(direction)
+    
+    last_input_time = current_time
+
+def get_next_movement():
+    """Lấy movement tiếp theo từ queue"""
+    global movement_queue
+    if movement_queue:
+        return movement_queue.pop(0)
+    return None
+
+def clear_movement_queue():
+    """Xóa toàn bộ queue"""
+    global movement_queue
+    movement_queue.clear()
+
+def get_queue_size():
+    """Lấy số lượng movements trong queue"""
+    return len(movement_queue)
+
+def is_queue_empty():
+    """Kiểm tra queue có rỗng không"""
+    return len(movement_queue) == 0
+
+def peek_next_movement():
+    """Xem movement tiếp theo mà không remove khỏi queue"""
+    if movement_queue:
+        return movement_queue[0]
+    return None
