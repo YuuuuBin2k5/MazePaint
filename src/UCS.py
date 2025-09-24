@@ -6,11 +6,6 @@ from config import MAZE_ROWS, MAZE_COLS
 from func_algorithm import simulate_move, MOVES, reconstruct_path_astar_ucs
 
 def ucs_solve(maze, start_pos):
-    """
-    Tìm lời giải bằng thuật toán UCS với cấu trúc nhất quán.
-    """
-    print("Solving with UCS...")
-    start_time = time.time()
     total_path_tiles = sum(r.count(0) for r in maze)
     initial_painted = frozenset([tuple(start_pos)])
     start_state = (tuple(start_pos), initial_painted)
@@ -26,7 +21,7 @@ def ucs_solve(maze, start_pos):
 
     visited_count = 0
     num_of_states = 0
-
+    start_time = time.time()
     while pq:
         cost, _, current_state = heapq.heappop(pq)
         visited_count += 1
