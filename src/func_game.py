@@ -3,11 +3,6 @@ import pygame
 import tkinter as tk
 from config import *
 
-def is_valid_position(maze, row, col):
-    """Kiểm tra vị trí có hợp lệ không"""
-    rows, cols = len(maze), len(maze[0])
-    return 0 <= row < rows and 0 <= col < cols and maze[row][col] == PATH
-
 def handle_input(event):
     if event.type == pygame.KEYDOWN:
         if event.key == pygame.K_UP: return "UP"
@@ -59,7 +54,7 @@ def ask_algorithm():
     tk.Label(dialog, text="Chọn chế độ/thuật toán:", font=font_big).pack(pady=15)
 
     # danh sách thuật toán
-    algorithms = ["Player", "BFS", "DFS", "UCS", "GBFS", "Astar"]
+    algorithms = ["Player", "BFS", "DFS", "UCS", "Greedy", "Astar"]
     selected = tk.StringVar(value="Player")  # mặc định
 
     for algo in algorithms:

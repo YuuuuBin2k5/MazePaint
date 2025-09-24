@@ -4,14 +4,13 @@ import time
 from config import MAZE_ROWS, MAZE_COLS
 from func_algorithm import simulate_move, DIRECTIONS
 
-def bfs_solve(maze, start_pos): # Đổi tên hàm
-    print("Solving with BFS...")
-    start_time = time.time()
+def bfs_solve(maze, start_pos):
     total_path_tiles = sum(r.count(0) for r in maze)
     initial_painted = frozenset([tuple(start_pos)])
     queue = collections.deque([(tuple(start_pos), [], initial_painted)])
     visited = { (tuple(start_pos), initial_painted) }
 
+    start_time = time.time()
     while queue:
         current_pos, path, painted_tiles = queue.popleft()
         
@@ -24,7 +23,6 @@ def bfs_solve(maze, start_pos): # Đổi tên hàm
                 "time": time.time() - start_time
             }
 
-        # Lặp qua các hướng di chuyển từ biến DIRECTIONS
         for direction in DIRECTIONS:
             next_pos, newly_painted = simulate_move(current_pos, MAZE_ROWS, MAZE_COLS, direction, maze)
             
@@ -37,6 +35,5 @@ def bfs_solve(maze, start_pos): # Đổi tên hàm
             if new_state not in visited:
                 visited.add(new_state)
                 new_path = path + [direction]
-                queue.append((next_pos, new_path, new_painted_set))
-    print("Không có lời giải")            
+                queue.append((next_pos, new_path, new_painted_set))        
     return None
