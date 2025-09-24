@@ -4,7 +4,7 @@ import pygame
 from config import *
 import time
 from spaceship import draw_spaceship_player, update_star_particles, draw_star_particles
-from wall import asteroid_wall_renderer
+from wall import asteroid_wall_3d_renderer
 
 
 # Background elements - Các thành phần nền
@@ -78,7 +78,7 @@ def draw_board(screen, maze, painted_tiles, player_pos, board_x, board_y, keys=N
             rect = pygame.Rect(board_x + c * TILE_SIZE, board_y + r * TILE_SIZE, TILE_SIZE, TILE_SIZE)
             
             if maze[r][c] == 1:  # Tường - vẽ với hệ thống thiên thạch mới
-                wall_tile = asteroid_wall_renderer.get_wall_tile(r, c, TILE_SIZE)
+                wall_tile = asteroid_wall_3d_renderer.get_wall_tile(r, c, TILE_SIZE)
                 screen.blit(wall_tile, (rect.x, rect.y))
                     
             else:  # Ô có thể di chuyển
