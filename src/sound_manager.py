@@ -35,7 +35,6 @@ class SoundManager:
                     sound = pygame.mixer.Sound(path)
                     sound.set_volume(SFX_VOLUME * MASTER_VOLUME)
                     self.sounds[name] = sound
-                    print(f"✅ Loaded sound: {name}")
                 else:
                     print(f"⚠️  Sound file not found: {path}")
                     # Tạo âm thanh rỗng để tránh lỗi
@@ -69,7 +68,6 @@ class SoundManager:
                 pygame.mixer.music.play(loop)
                 self.victory_music_playing = True
                 self.current_music_type = "victory"
-                print("🎵 Victory music started")
             else:
                 print(f"⚠️  Victory music file not found: {VICTORY_MUSIC}")
         except Exception as e:
@@ -87,7 +85,6 @@ class SoundManager:
                 pygame.mixer.music.play(loop)
                 self.music_playing = True
                 self.current_music_type = "background"
-                print("🎵 Background music started")
             else:
                 print(f"⚠️  Background music file not found: {BACKGROUND_MUSIC}")
         except Exception as e:

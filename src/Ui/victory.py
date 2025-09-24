@@ -1,7 +1,9 @@
+# -*- coding: utf-8 -*-
 import pygame
 import random
 import math
 from config import *
+from font_manager import get_font_manager
 
 # Vẽ hiệu ứng victory với spaceship bay qua các hành tinh
 def draw_cosmic_victory(screen, width, height, frame):
@@ -283,26 +285,23 @@ def draw_cosmic_victory(screen, width, height, frame):
                     # Fallback: simple triangle
                     pygame.draw.circle(screen, (100, 200, 255), (int(spaceship_x), int(spaceship_y)), 15)
 
-        # Show progress text during journey
+        # Show progress text during journey với font_manager
         if frame < 70:  # Shortened from 100 to 70 for faster journey
-            try:
-                journey_font = pygame.font.SysFont("Times New Roman", 36, bold=True)
-            except:
-                try:
-                    journey_font = pygame.font.SysFont("Calibri", 36, bold=True)
-                except:
-                    journey_font = pygame.font.Font(None, 42)
+            font_manager = get_font_manager()
             
             journey_texts = [
-                "Exploring the galaxy...",
-                "Mission accomplished!", 
+                "Khám phá thiên hà...",
+                "Nhiệm vụ hoàn thành!", 
             ]
             
             text_index = min(int(journey_progress * len(journey_texts)), len(journey_texts) - 1)
-            journey_text = journey_font.render(journey_texts[text_index], True, (200, 220, 255))
-            journey_text.set_alpha(int(200 * math.sin(frame * 0.1)))
-            text_rect = journey_text.get_rect(center=(center[0], height - 60))
-            screen.blit(journey_text, text_rect)
+            journey_text = font_manager.render_text(journey_texts[text_index], 36, (200, 220, 255), 
+                                                   bold=True, glow=True)
+            if journey_text:
+                alpha_value = int(200 * math.sin(frame * 0.1))
+                journey_text.set_alpha(alpha_value)
+                text_rect = journey_text.get_rect(center=(center[0], height - 60))
+                screen.blit(journey_text, text_rect)
 
     elif frame < 180:  # PHASE 2: SPACESHIP DIALOGUE PHASE (frame 80-180)
         dialogue_frame = frame - 80  # 0-100 frame for dialogue phase
@@ -383,62 +382,56 @@ def draw_cosmic_victory(screen, width, height, frame):
         bubble_x = int(spaceship_x)
         bubble_y = int(spaceship_y) - 60
         
-        # Create speech bubble (larger font for better visibility)
-        try:
-            # Try to use a font that supports Vietnamese characters better
-            bubble_font = pygame.font.SysFont("Times New Roman", 22, bold=True)  # Increased from 16 to 22, made bold
-        except:
-            try:
-                # Fallback to another common font
-                bubble_font = pygame.font.SysFont("Calibri", 22, bold=True)  # Increased from 16 to 22, made bold
-            except:
-                # Final fallback
-                bubble_font = pygame.font.Font(None, 28)  # Increased from 20 to 28
+        # Create speech bubble với font_manager
+        font_manager = get_font_manager()
+        text_surface = font_manager.render_text(message, 22, (40, 40, 80), bold=True, shadow=True)
         
-        text_surface = bubble_font.render(message, True, (40, 40, 80))  # Darker color for better contrast
-        text_rect = text_surface.get_rect()
+        if text_surface:
+            text_rect = text_surface.get_rect()
+            
+            # Bubble background (larger for bigger text)
+            bubble_width = text_rect.width + 30  # Increased padding from 24 to 30
+            bubble_height = text_rect.height + 24  # Increased padding from 18 to 24
+            bubble_rect = pygame.Rect(bubble_x - bubble_width//2, bubble_y - bubble_height//2, 
+                                    bubble_width, bubble_height)
+            
+            # Draw bubble shadow (larger shadow for bigger bubble)
+            shadow_rect = bubble_rect.move(3, 3)  # Increased shadow offset from 2,2 to 3,3
+            pygame.draw.ellipse(screen, (0, 0, 0, 100), shadow_rect)  # Darker shadow
+            
+            # Draw bubble (brighter background for better text contrast)
+            pygame.draw.ellipse(screen, (250, 250, 255), bubble_rect)  # Brighter background
+            pygame.draw.ellipse(screen, (120, 120, 180), bubble_rect, 3)  # Thicker border from 2 to 3
+            
+            # Draw bubble tail (pointing to spaceship) - larger tail
+            tail_points = [
+                (bubble_x - 10, bubble_y + bubble_height//2 - 2),  # Wider tail from 8 to 10
+                (bubble_x + 10, bubble_y + bubble_height//2 - 2),  # Wider tail from 8 to 10
+                (bubble_x, bubble_y + bubble_height//2 + 15)       # Longer tail from 12 to 15
+            ]
+            pygame.draw.polygon(screen, (250, 250, 255), tail_points)  # Match bubble color
+            pygame.draw.polygon(screen, (120, 120, 180), tail_points, 3)  # Thicker border
+            
+            # Draw text in bubble
+            text_x = bubble_rect.centerx - text_rect.width // 2
+            text_y = bubble_rect.centery - text_rect.height // 2
+            screen.blit(text_surface, (text_x, text_y))
         
-        # Bubble background (larger for bigger text)
-        bubble_width = text_rect.width + 30  # Increased padding from 24 to 30
-        bubble_height = text_rect.height + 24  # Increased padding from 18 to 24
-        bubble_rect = pygame.Rect(bubble_x - bubble_width//2, bubble_y - bubble_height//2, 
-                                bubble_width, bubble_height)
-        
-        # Draw bubble shadow (larger shadow for bigger bubble)
-        shadow_rect = bubble_rect.move(3, 3)  # Increased shadow offset from 2,2 to 3,3
-        pygame.draw.ellipse(screen, (0, 0, 0, 100), shadow_rect)  # Darker shadow
-        
-        # Draw bubble (brighter background for better text contrast)
-        pygame.draw.ellipse(screen, (250, 250, 255), bubble_rect)  # Brighter background
-        pygame.draw.ellipse(screen, (120, 120, 180), bubble_rect, 3)  # Thicker border from 2 to 3
-        
-        # Draw bubble tail (pointing to spaceship) - larger tail
-        tail_points = [
-            (bubble_x - 10, bubble_y + bubble_height//2 - 2),  # Wider tail from 8 to 10
-            (bubble_x + 10, bubble_y + bubble_height//2 - 2),  # Wider tail from 8 to 10
-            (bubble_x, bubble_y + bubble_height//2 + 15)       # Longer tail from 12 to 15
-        ]
-        pygame.draw.polygon(screen, (250, 250, 255), tail_points)  # Match bubble color
-        pygame.draw.polygon(screen, (120, 120, 180), tail_points, 3)  # Thicker border
-        
-        # Draw text
-        text_x = bubble_x - text_rect.width//2
-        text_y = bubble_y - text_rect.height//2
-        screen.blit(text_surface, (text_x, text_y))
-        
-        # Typing effect for each message
+        # Typing effect for each message với font_manager
         message_start_frame = (dialogue_frame // 35) * 35  # Start of current message
         typing_frame = dialogue_frame - message_start_frame
         if typing_frame < 20:  # 20 frames to type each message
             typing_progress = typing_frame / 20.0
             chars_to_show = int(len(message) * typing_progress)
             if chars_to_show < len(message):
-                # Add blinking cursor (larger for bigger font)
+                # Add blinking cursor với font_manager
                 cursor_alpha = int(255 * abs(math.sin(dialogue_frame * 0.3)))
-                cursor_surface = bubble_font.render("|", True, (80, 80, 120))  # Use "|" instead of "_", darker color
-                cursor_surface.set_alpha(cursor_alpha)
-                cursor_x = text_x + bubble_font.size(message[:chars_to_show])[0]
-                screen.blit(cursor_surface, (cursor_x, text_y))
+                cursor_surface = font_manager.render_text("|", 22, (80, 80, 120), bold=True)
+                if cursor_surface:
+                    cursor_surface.set_alpha(cursor_alpha)
+                    partial_text_width = font_manager.get_text_size(message[:chars_to_show], 22)[0]
+                    cursor_x = text_x + partial_text_width
+                    screen.blit(cursor_surface, (cursor_x, text_y))
 
     else:  # PHASE 3: VICTORY DISPLAY (after frame 180)
         victory_frame = frame - 180  # Reset frame counter for victory phase
@@ -543,42 +536,99 @@ def draw_cosmic_victory(screen, width, height, frame):
                         if int(trail_x) >= 0 and int(trail_x) < width and int(trail_y) >= 0 and int(trail_y) < height:
                             screen.set_at((int(trail_x), int(trail_y)), trail_color)
         
-        # 3. Background cosmic effects (lighter than before)
-        # Black hole in background
-        black_hole_radius = 30 + 8 * math.sin(victory_frame * 0.05)
-        pygame.draw.circle(screen, (0, 0, 0), center, int(black_hole_radius))
+        # 3. Background cosmic effects - Cosmic Portal instead of black hole
+        # Multi-layered cosmic portal with gradient effect
+        portal_radius = 35 + 12 * math.sin(victory_frame * 0.06)
         
-        for i in range(3):
-            glow_radius = black_hole_radius + i * 10
-            glow_alpha = max(15, 40 - i * 10)
-            glow_surf = pygame.Surface((width, height), pygame.SRCALPHA)
-            pygame.draw.circle(glow_surf, (30, 20, 80, glow_alpha), center, int(glow_radius), 2)
-            screen.blit(glow_surf, (0, 0))
-
-        # Subtle energy rings
-        for ring in range(2):
-            ring_radius = 160 + ring * 60 + 10 * math.sin(victory_frame * 0.08 + ring)
+        # Create gradient portal effect
+        for layer in range(15):  # Multiple layers for smooth gradient
+            layer_radius = portal_radius * (1.0 - layer * 0.06)  # Decreasing radius
+            if layer_radius > 0:
+                # Color gradient from outer to inner
+                color_progress = layer / 15.0
+                
+                # Outer: Deep blue/purple, Inner: Bright cyan/white
+                r = int(20 + (180 * color_progress))   # 20 → 200
+                g = int(40 + (200 * color_progress))   # 40 → 240  
+                b = int(120 + (135 * color_progress))  # 120 → 255
+                alpha = int(60 + (40 * (1 - color_progress)))  # 60 → 100
+                
+                portal_surf = pygame.Surface((width, height), pygame.SRCALPHA)
+                pygame.draw.circle(portal_surf, (r, g, b, alpha), center, int(layer_radius))
+                screen.blit(portal_surf, (0, 0))
+        
+        # Rotating energy rings around portal
+        for ring_idx in range(4):
+            ring_radius = portal_radius + 15 + ring_idx * 12
+            rotation_speed = 0.03 + ring_idx * 0.01
+            ring_alpha = max(20, 60 - ring_idx * 15)
+            
+            # Create rotating effect
+            angle_offset = victory_frame * rotation_speed + ring_idx * 1.57  # π/2 offset
+            
             ring_surf = pygame.Surface((width, height), pygame.SRCALPHA)
-            alpha = max(8, 25 - ring * 8)
-            color = (80 + ring * 20, 80 + ring * 20, 150, alpha)
+            
+            # Draw partial ring segments for rotation effect
+            for segment in range(8):
+                segment_angle = (segment * 0.785) + angle_offset  # π/4 segments
+                start_x = center[0] + math.cos(segment_angle) * ring_radius
+                start_y = center[1] + math.sin(segment_angle) * ring_radius
+                end_x = center[0] + math.cos(segment_angle + 0.3) * ring_radius
+                end_y = center[1] + math.sin(segment_angle + 0.3) * ring_radius
+                
+                # Color varies by ring
+                color_intensity = 150 + ring_idx * 25
+                ring_color = (100 + ring_idx * 20, color_intensity, 255, ring_alpha)
+                
+                # Draw glowing segments
+                if 0 <= start_x < width and 0 <= start_y < height:
+                    pygame.draw.circle(ring_surf, ring_color, (int(start_x), int(start_y)), 2)
+            
+            screen.blit(ring_surf, (0, 0))
+
+        # Subtle energy rings - now complementing the portal
+        for ring in range(2):
+            ring_radius = 180 + ring * 80 + 15 * math.sin(victory_frame * 0.08 + ring)
+            ring_surf = pygame.Surface((width, height), pygame.SRCALPHA)
+            alpha = max(12, 35 - ring * 12)
+            color = (60 + ring * 30, 100 + ring * 40, 200, alpha)
             pygame.draw.circle(ring_surf, color, center, int(ring_radius), 1)
             screen.blit(ring_surf, (0, 0))
 
-        # Few quantum particles
-        for _ in range(15):
-            angle = random.uniform(0, 2 * math.pi)
-            base_dist = random.uniform(200, 300)
-            quantum_wave = 20 * math.sin(victory_frame * 0.1 + angle * 2)
-            dist = base_dist + quantum_wave
+        # Enhanced quantum particles - orbiting the portal
+        for particle_idx in range(25):  # More particles for richer effect
+            # Orbital motion around portal
+            orbit_radius = 80 + (particle_idx % 5) * 15
+            orbit_speed = 0.02 + (particle_idx % 3) * 0.01
+            angle = victory_frame * orbit_speed + particle_idx * 0.25
             
-            x = int(center[0] + math.cos(angle) * dist)
-            y = int(center[1] + math.sin(angle) * dist)
+            x = center[0] + math.cos(angle) * orbit_radius
+            y = center[1] + math.sin(angle) * orbit_radius
+            
+            # Add some random drift
+            drift_x = 10 * math.sin(victory_frame * 0.03 + particle_idx)
+            drift_y = 8 * math.cos(victory_frame * 0.04 + particle_idx * 0.7)
+            x += drift_x
+            y += drift_y
             
             if 0 <= x < width and 0 <= y < height:
-                quantum_alpha = int(40 * abs(math.sin(victory_frame * 0.2 + angle)))
-                colors = [(120,180,255), (180,120,255), (120,255,180)]
-                color = random.choice(colors)
-                pygame.draw.circle(screen, (*color, quantum_alpha), (x, y), 1)
+                # Particle brightness pulses
+                quantum_alpha = int(60 + 40 * abs(math.sin(victory_frame * 0.15 + angle)))
+                
+                # Color variety - blues, cyans, purples
+                color_type = particle_idx % 4
+                if color_type == 0:
+                    color = (120, 180, 255)  # Light blue
+                elif color_type == 1:
+                    color = (180, 120, 255)  # Purple
+                elif color_type == 2:
+                    color = (120, 255, 220)  # Cyan
+                else:
+                    color = (255, 180, 120)  # Light orange
+                
+                # Vary particle size
+                particle_size = 1 + (particle_idx % 3)
+                pygame.draw.circle(screen, (*color, quantum_alpha), (int(x), int(y)), particle_size)
 
         # 4. Final spaceship position (smaller, at center top - moved higher)
         final_ship_y = center[1] - 120  # Moved up from -80 to -120
@@ -619,19 +669,39 @@ def draw_cosmic_victory(screen, width, height, frame):
                 ship_img = ship_imgs.get(None)
                 
             if ship_img is not None:
-                # Normal size for victory display
-                ship_img = pygame.transform.scale(ship_img, (40, 40))  # Fixed size
+                # Larger size for victory display - make it more visible
+                ship_img = pygame.transform.scale(ship_img, (50, 50))  # Increased from 40 to 50
                 ship_rect = ship_img.get_rect(center=(int(ship_x), int(ship_y)))
                 
-                # Ship glow
-                glow_surf = pygame.Surface((ship_rect.width + 20, ship_rect.height + 20), pygame.SRCALPHA)
-                pygame.draw.ellipse(glow_surf, (150, 200, 255, 60), glow_surf.get_rect())
-                screen.blit(glow_surf, (ship_rect.x - 10, ship_rect.y - 10))
+                # Enhanced ship glow - make it more prominent
+                glow_surf = pygame.Surface((ship_rect.width + 30, ship_rect.height + 30), pygame.SRCALPHA)
+                pygame.draw.ellipse(glow_surf, (150, 200, 255, 100), glow_surf.get_rect())  # Increased alpha
+                screen.blit(glow_surf, (ship_rect.x - 15, ship_rect.y - 15))
+                
+                # Add bright outline to make spaceship stand out
+                outline_surf = pygame.Surface((ship_rect.width + 4, ship_rect.height + 4), pygame.SRCALPHA)
+                outline_img = pygame.transform.scale(ship_img, (ship_rect.width + 4, ship_rect.height + 4))
+                # Create white outline
+                for dx in range(-2, 3):
+                    for dy in range(-2, 3):
+                        if dx*dx + dy*dy <= 4:  # Circular outline
+                            outline_surf.blit(outline_img, (dx+2, dy+2))
+                
+                # Tint the outline white/bright
+                outline_surf.fill((255, 255, 255, 80), special_flags=pygame.BLEND_RGBA_MULT)
+                screen.blit(outline_surf, (ship_rect.x - 2, ship_rect.y - 2))
                 
                 screen.blit(ship_img, ship_rect)
             else:
-                raise Exception("No spaceship image")
-        except:
+                # Use fallback instead of raising exception
+                ship_x = center[0]
+                if victory_frame < 120:
+                    side_movement = 80 * (1 - victory_frame/120.0) * math.sin(victory_frame * 0.15)
+                    ship_x += side_movement
+                hover_offset = 5 * math.sin(victory_frame * 0.1)
+                pygame.draw.circle(screen, (100, 200, 255), (int(ship_x), int(final_ship_y + hover_offset)), 12)
+        except Exception as e:
+            # Fallback
             # Fallback
             ship_x = center[0]
             if victory_frame < 120:
@@ -642,8 +712,6 @@ def draw_cosmic_victory(screen, width, height, frame):
 
         # 5. VICTORY TEXT - appearing after spaceship settles
         if victory_frame > 30:  # Small delay after spaceship stops
-            font_large = pygame.font.SysFont("Arial", 88, bold=True)
-            
             # Text animation - fade in and scale up
             text_progress = min((victory_frame - 30) / 60.0, 1.0)  # 1 second fade in
             
@@ -652,47 +720,53 @@ def draw_cosmic_victory(screen, width, height, frame):
             pulse_scale = 0.03 * math.sin(victory_frame * 0.08)  # Reduced from 0.1 to 0.03, slower frequency
             scale_pulse = base_scale + pulse_scale
             
-            victory_text = font_large.render("YOU WIN!", True, (255, 255, 200))
-            cosmic_text = pygame.transform.rotozoom(victory_text, 0, scale_pulse)
-            text_rect = cosmic_text.get_rect(center=(center[0], center[1] + 20))
-            
             text_alpha = int(255 * text_progress)
             
-            # Shadow background
-            shadow_surf = pygame.Surface((text_rect.width + 80, text_rect.height + 80), pygame.SRCALPHA)
-            pygame.draw.ellipse(shadow_surf, (0, 0, 0, int(120 * text_progress)), shadow_surf.get_rect())
-            screen.blit(shadow_surf, (text_rect.x - 40, text_rect.y - 40))
+            # Victory text with font_manager effects
+            victory_text = get_font_manager().render_text(
+                "YOU WIN!",
+                size=88,
+                color=(255, 255, 200),
+                bold=True,
+                shadow=True,
+                glow=True
+            )
             
-            # Glow layers
-            for i, (size_offset, color, alpha_mult) in enumerate([
-                (60, (100, 200, 255), 0.4),
-                (40, (200, 150, 255), 0.6), 
-                (20, (255, 255, 255), 0.3)
-            ]):
-                glow = pygame.Surface((text_rect.width + size_offset, text_rect.height + size_offset), pygame.SRCALPHA)
-                glow_alpha = int(255 * alpha_mult * text_progress)
-                pygame.draw.ellipse(glow, (*color, glow_alpha), glow.get_rect())
-                offset = size_offset // 2
-                screen.blit(glow, (text_rect.x - offset, text_rect.y - offset))
-            
-            # Final text
+            # Apply scaling animation
+            cosmic_text = pygame.transform.rotozoom(victory_text, 0, scale_pulse)
             cosmic_text.set_alpha(text_alpha)
+            text_rect = cosmic_text.get_rect(center=(center[0], center[1] + 20))
             screen.blit(cosmic_text, text_rect)
 
             # 6. Instruction text - appears after victory text is fully visible
             if text_progress >= 1.0:
-                small_font = pygame.font.SysFont("Arial", 28, bold=False)
-                restart_text = "Click anywhere to play again"
-                
                 instruction_alpha = int(200 + 55 * math.sin(victory_frame * 0.12))
                 
                 # Text background
-                text_bg = pygame.Surface((width, 40), pygame.SRCALPHA)
+                text_bg = pygame.Surface((width, 80), pygame.SRCALPHA)
                 text_bg.fill((0, 0, 0, 80))
-                screen.blit(text_bg, (0, center[1] + 120))
+                screen.blit(text_bg, (0, center[1] + 100))
                 
-                # Instruction text
-                instruction_text = small_font.render(restart_text, True, (220, 220, 255))
+                # Main instruction text with font_manager
+                main_text = "CLICK anywhere or SPACE để tiếp tục"
+                instruction_text = get_font_manager().render_text(
+                    main_text,
+                    size=24,
+                    color=(220, 220, 255),
+                    shadow=True
+                )
                 instruction_text.set_alpha(instruction_alpha)
-                instruction_rect = instruction_text.get_rect(center=(center[0], center[1] + 140))
+                instruction_rect = instruction_text.get_rect(center=(center[0], center[1] + 120))
                 screen.blit(instruction_text, instruction_rect)
+                
+                # Additional hints with font_manager
+                hint_text = "R - Chơi lại level • ESC - Về menu"
+                hint_surface = get_font_manager().render_text(
+                    hint_text,
+                    size=20,
+                    color=(180, 180, 220),
+                    shadow=True
+                )
+                hint_surface.set_alpha(instruction_alpha - 50)
+                hint_rect = hint_surface.get_rect(center=(center[0], center[1] + 150))
+                screen.blit(hint_surface, hint_rect)

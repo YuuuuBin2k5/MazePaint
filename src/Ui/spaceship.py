@@ -6,6 +6,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from config import *
+from config import SELECTED_SPACESHIP, get_selected_spaceship
 
 # Load spaceship image once at module level
 spaceship_image = None
@@ -13,21 +14,25 @@ spaceship_rotated_images = {}
 last_direction = None  # Lưu hướng cuối cùng
 
 def load_spaceship_image():
-    """Load và cache ảnh spaceship"""
+    """Load và cache ảnh spaceship theo SELECTED_SPACESHIP"""
     global spaceship_image, spaceship_rotated_images
     
     if spaceship_image is None:
         try:
-            # Try loading from spaceship.png first - fixed path for ui folder
-            spaceship_image = pygame.image.load("./asset/image/spaceship/ship_7.svg")
-        except:
+            # Load phi thuyền theo SELECTED_SPACESHIP (0-8)
+            ship_id = get_selected_spaceship() + 1  # Convert 0-8 to 1-9 để match với filename
+            spaceship_path = f"./asset/image/spaceship/ship_{ship_id}.svg"
+            spaceship_image = pygame.image.load(spaceship_path)
+        except Exception:
             try:
-                # Create simple spaceship if no image found
-                spaceship_image = create_simple_spaceship()
-                print("✅ Created simple spaceship")
-            except Exception as e:
-                print(f"❌ Error creating spaceship: {e}")
-                spaceship_image = create_fallback_spaceship()
+                # Fallback to default spaceship
+                spaceship_image = pygame.image.load("./asset/image/spaceship/ship_1.svg")
+            except:
+                try:
+                    # Create simple spaceship if no image found
+                    spaceship_image = create_simple_spaceship()
+                except Exception:
+                    spaceship_image = create_fallback_spaceship()
         
         # Scale to appropriate size
         size = 40  # Fixed size instead of PLAYER_RADIUS * 4
@@ -35,14 +40,20 @@ def load_spaceship_image():
         
         # Pre-rotate images for each direction to avoid runtime rotation
         spaceship_rotated_images = {
-            "up": pygame.transform.rotate(spaceship_image, -90),      # Default up
+            "up": pygame.transform.rotate(spaceship_image, 90),      # Default up
             "right": pygame.transform.rotate(spaceship_image, 0), # Rotate 90° clockwise 
-            "down": pygame.transform.rotate(spaceship_image, 90),  # Rotate 180°
+            "down": pygame.transform.rotate(spaceship_image, -90),  # Rotate 180°
             "left": pygame.transform.rotate(spaceship_image, 180),   # Rotate 90° counter-clockwise
             None: spaceship_image  # Default orientation
         }
         
-        print("✅ Loaded simple spaceship with rotations")
+
+def reload_spaceship():
+    """Reload spaceship khi chọn phi thuyền mới"""
+    global spaceship_image, spaceship_rotated_images
+    spaceship_image = None  # Clear cache
+    spaceship_rotated_images = {}  # Clear rotated images
+    load_spaceship_image()  # Reload with new SELECTED_SPACESHIP
 
 def create_simple_spaceship():
     """Tạo spaceship đơn giản nếu không có ảnh"""

@@ -111,3 +111,15 @@ BUTTON_BORDER_RADIUS = 10  # Bo góc button
 HISTORY_Y_OFFSET = 25  # Khoảng cách dòng trong history
 PLANET_SPAWN_DELAY = 60  # Delay spawn hành tinh (frames)
 
+# -- MENU SETTINGS --
+SELECTED_SPACESHIP = 0  # Spaceship được chọn (0-8)
+
+def set_selected_spaceship(ship_id):
+    """Set spaceship đã chọn"""
+    global SELECTED_SPACESHIP
+    SELECTED_SPACESHIP = ship_id
+
+def get_selected_spaceship():
+    """Get spaceship đã chọn"""
+    return SELECTED_SPACESHIP
+
