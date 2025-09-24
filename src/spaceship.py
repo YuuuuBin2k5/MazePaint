@@ -211,3 +211,17 @@ def draw_static_spaceship(screen, center_x, center_y):
 def draw_animated_spaceship(screen, center_x, center_y):
     """Draw spaceship - same as static for simplicity"""
     draw_spaceship_player(screen, center_x, center_y)
+
+
+# Easing functions for smooth movement
+def ease_in_out_quart(t):
+    """Easing function mạnh hơn: chậm hơn ở đầu/cuối, nhanh hơn ở giữa"""
+    if t < 0.5:
+        return 8 * t * t * t * t
+    else:
+        return 1 - pow(-2 * t + 2, 4) / 2
+
+def ease_in_out_sine(t):
+    """Easing function mượt mà: dùng sine wave"""
+    import math
+    return -(math.cos(math.pi * t) - 1) / 2
