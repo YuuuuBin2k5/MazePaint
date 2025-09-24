@@ -20,7 +20,7 @@ font_large = pygame.font.Font(None, 74)
 font_small = pygame.font.Font(None, 28)
 clock = pygame.time.Clock()
 
-# --- KHAI BÁO BIẾN TRẠNG THÁI ---
+# --- KHAI BÁO BIẾN TRẠNG THÁI ---~
 all_maps = {"LEVEL 1": LEVEL_ONE, "LEVEL 2": LEVEL_TWO, 
             "LEVEL 3": LEVEL_THREE, "LEVEL 4": LEVEL_FOUR,
             "LEVEL 5": LEVEL_FIVE, "LEVEL 6": LEVEL_SIX,
