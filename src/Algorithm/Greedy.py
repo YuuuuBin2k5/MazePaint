@@ -1,27 +1,31 @@
-# BFS.py
-import collections
-import random
+# GBFS.py
+import heapq
 import time
+import random
 from config import MAZE_ROWS, MAZE_COLS
-from func_algorithm import simulate_move, MOVES, reconstruct_path
+from .func_algorithm import simulate_move, MOVES, reconstruct_path, heuristic
 
-def bfs_solve(maze, start_pos):  
+def greedy_solve(maze, start_pos):
     total_path_tiles = sum(r.count(0) for r in maze)
     initial_painted = frozenset([tuple(start_pos)])
     start_state = (tuple(start_pos), initial_painted)
 
-    queue = collections.deque([start_state])
+    # Priority Queue: (heuristic, tie_breaker, state)
+    # Heuristic là độ ưu tiên chính
+    tie_breaker = 0
+    initial_h = heuristic(initial_painted, total_path_tiles)
+    pq = [(initial_h, tie_breaker, start_state)] 
     
-    # Visited lưu lại dấu vết: {trạng_thái_con: (trạng_thái_cha, hướng_đi)}
+    # Visited dùng để truy vết ngược
     visited = {start_state: (None, None)}
     num_of_states = 0
     visited_count = 0
     start_time = time.time()
-    while queue:
-        current_pos, painted_tiles = queue.popleft()
-        current_state = (current_pos, painted_tiles)
-        visited_count+=1
-
+    while pq:
+        _, _, current_state = heapq.heappop(pq)
+        current_pos, painted_tiles = current_state
+        visited_count += 1
+        
         if len(painted_tiles) == total_path_tiles:
             path = reconstruct_path(visited, start_state, current_state)
             return {
@@ -44,7 +48,10 @@ def bfs_solve(maze, start_pos):
             new_state = (next_pos, new_painted_set)
             
             if new_state not in visited:
-                num_of_states+=1
+                num_of_states += 1
                 visited[new_state] = (current_state, move)
-                queue.append(new_state)
+                # Độ ưu tiên chỉ dựa vào heuristic
+                new_h = heuristic(new_painted_set, total_path_tiles)
+                tie_breaker += 1
+                heapq.heappush(pq, (new_h, tie_breaker, new_state))                
     return None

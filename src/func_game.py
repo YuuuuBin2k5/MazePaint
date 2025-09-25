@@ -1,6 +1,7 @@
 # func_game.py
 import pygame
 import tkinter as tk
+from config import DIALOG_PADX, DIALOG_PADY
 from config import *
 
 def handle_input(event):
@@ -59,7 +60,7 @@ def ask_algorithm():
 
     for algo in algorithms:
         tk.Radiobutton(dialog, text=algo, variable=selected, value=algo,
-                       font=font_big, anchor="w", padx=20).pack(fill="x")
+                       font=font_big, anchor="w", padx=DIALOG_PADX).pack(fill="x")
 
     result = {"algo": "Player"}
 
@@ -69,7 +70,7 @@ def ask_algorithm():
 
     btn_ok = tk.Button(dialog, text="OK", command=on_ok,
                        width=9, height=2, font=font_big)
-    btn_ok.pack(pady=20)
+    btn_ok.pack(pady=DIALOG_PADY)
 
     dialog.wait_window()
     root.destroy()

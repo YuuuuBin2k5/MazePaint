@@ -2,14 +2,14 @@
 import pygame
 import copy
 from config import *
-from ui import *
-from spaceship import update_star_particles, draw_star_particles
+from Ui.ui import *
+from Ui.spaceship import update_star_particles, draw_star_particles, ease_in_out_quart
 from func_game import *
-from BFS import bfs_solve
-from DFS import dfs_solve
-from UCS import ucs_solve
-from Greedy import greedy_solve
-from Astar import astar_solve
+from Algorithm.BFS import bfs_solve
+from Algorithm.DFS import dfs_solve
+from Algorithm.UCS import ucs_solve
+from Algorithm.Greedy import greedy_solve
+from Algorithm.Astar import astar_solve
 from maps import *
 
 # --- KHỞI TẠO PYGAME VÀ CÁC THÀNH PHẦN ---
@@ -43,6 +43,9 @@ board_before_player_moves = None
 game_won = False
 solving_path = None
 history_list = []
+history_groups = {}  # Nhóm lịch sử theo maze state
+show_history_panel = False  # Trạng thái hiển thị panel
+history_scroll_offset = 0  # Scroll offset cho panel
 
 # Smooth movement variables
 player_visual_pos = [1, 1]  # Vị trí hiển thị (có thể ở giữa các ô)
@@ -51,24 +54,35 @@ is_moving_smooth = False    # Có đang di chuyển mượt không
 movement_progress = 0.0     # Tiến độ di chuyển (0.0 -> 1.0)
 current_auto_direction = None  # Hướng di chuyển khi auto solve
 last_auto_direction = None  # Lưu direction cuối cùng để dùng khi smooth movement
-SMOOTH_MOVE_SPEED = 1.0    # Giảm tốc độ từ 8.0 xuống 6.0 để mượt mà hơn
 
 time_since_last_move = 0
 time_since_last_player_move = 0  # Thêm cooldown cho player
-SOLVER_MOVE_INTERVAL = 100
-PLAYER_MOVE_INTERVAL = 180  # Tăng lên 180ms để có thời gian cho smooth movement
 
 # --- KHAI BÁO RECT CHO CÁC BUTTON ---
-map_rect = pygame.Rect(840, 100, 240, 60)
-player_rect = pygame.Rect(840, 320, 240, 60)
-solver_rect = pygame.Rect(840, 400, 240, 60)
-restart_rect = pygame.Rect(840, 480, 240, 60)
-history_rect = pygame.Rect(840, 560, 240, 60)
+map_rect = pygame.Rect(BUTTON_X, MAP_BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT)
+player_rect = pygame.Rect(BUTTON_X, PLAYER_BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT)
+solver_rect = pygame.Rect(BUTTON_X, SOLVER_BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT)
+restart_rect = pygame.Rect(BUTTON_X, RESTART_BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT)
+history_rect = pygame.Rect(BUTTON_X, HISTORY_BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT)
+
+# Speed control buttons
+speed_decrease_rect = pygame.Rect(SPEED_DECREASE_X, SPEED_BUTTONS_Y, SPEED_BUTTON_WIDTH, SPEED_BUTTON_HEIGHT)
+speed_increase_rect = pygame.Rect(SPEED_INCREASE_X, SPEED_BUTTONS_Y, SPEED_BUTTON_WIDTH, SPEED_BUTTON_HEIGHT)
+speed_display_rect = pygame.Rect(SPEED_DISPLAY_X, SPEED_BUTTONS_Y, SPEED_DISPLAY_WIDTH, SPEED_BUTTON_HEIGHT)
+
+# Frame counter cho hiệu ứng
+frame = 0
+victory_frame = 0  # Frame counter riêng cho victory animation
 
 # --- VÒNG LẶP CHÍNH ---
 running = True
 while running:
     dt = clock.tick(FPS)
+    frame += 1  # Tăng frame counter
+    
+    # Tăng victory frame counter nếu đang chiến thắng
+    if game_won:
+        victory_frame += 1
     
     # Update star particles
     update_star_particles(dt)
@@ -80,7 +94,44 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         
-        if not solving_path:
+        # Xử lý nhấp chuột để chơi lại khi thắng game
+        if game_won and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            # Reset game về trạng thái ban đầu
+            player_pos = [1, 1]
+            player_visual_pos = [1, 1]
+            player_target_pos = [1, 1]
+            is_moving_smooth = False
+            movement_progress = 0.0
+            current_auto_direction = None
+            last_auto_direction = None
+            painted_tiles = [[False for _ in range(maze_cols)] for _ in range(maze_rows)]
+            painted_tiles[player_pos[0]][player_pos[1]] = True
+            board_before_player_moves = None
+            game_won = False
+            solving_path = None
+            move_count = 0
+            victory_frame = 0  # Reset victory frame counter
+        
+        # Xử lý sự kiện cho history panel
+        if show_history_panel:
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                # Panel dimensions (cần phải match với draw code)
+                panel_rect = pygame.Rect(200, 50, 800, 600)
+                close_rect = pygame.Rect(panel_rect.right - 40, panel_rect.top + 10, 30, 30)
+                
+                # Click close button
+                if close_rect.collidepoint(event.pos):
+                    show_history_panel = False
+                # Click outside panel to close
+                elif not panel_rect.collidepoint(event.pos):
+                    show_history_panel = False
+            
+            # Scroll handling
+            elif event.type == pygame.MOUSEWHEEL:
+                history_scroll_offset -= event.y * 30  # Scroll speed
+                history_scroll_offset = max(0, history_scroll_offset)
+        
+        if not solving_path and not game_won:
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 # NÚT MAP: Chuyển map
                 if map_rect.collidepoint(event.pos):
@@ -98,6 +149,7 @@ while running:
                     game_won = False
                     solving_path = None
                     move_count = 0
+                    victory_frame = 0  # Reset victory frame counter
 
                 # NÚT CHỌN THUẬT TOÁN
                 elif player_rect.collidepoint(event.pos):
@@ -120,6 +172,7 @@ while running:
                         board_before_player_moves = None
                         game_won = False
                         move_count = 0
+                        victory_frame = 0  # Reset victory frame counter
                         
                         # 2. Gọi hàm solver tương ứng với thuật toán đã chọn
                         result = None
@@ -140,7 +193,23 @@ while running:
                             # Nếu có lời giải, lấy đường đi để bắt đầu tự động chạy
                             solving_path = result["path"]
                             
-                            # Lưu thông tin chi tiết vào lịch sử
+                            # Tạo state tuple cho grouping (flatten maze thành tuple)
+                            maze_state = tuple([cell for row in current_maze for cell in row])
+                            
+                            # Tạo result data với algorithm name
+                            result_data = result.copy()
+                            result_data['algorithm'] = algorithm
+                            
+                            # Group theo maze state
+                            if maze_state not in history_groups:
+                                history_groups[maze_state] = {
+                                    'rows': maze_rows,
+                                    'cols': maze_cols,
+                                    'results': []
+                                }
+                            history_groups[maze_state]['results'].append(result_data)
+                            
+                            # Lưu thông tin chi tiết vào lịch sử (để tương thích với code cũ)
                             history_list.append((
                                 f"N{map_names}",    # Lượt chơi hiện tại
                                 algorithm,              # Thuật toán đã dùng
@@ -148,6 +217,25 @@ while running:
                             ))
                         else:
                             # Nếu không có lời giải, vẫn lưu thông tin thất bại
+                            maze_state = tuple([cell for row in current_maze for cell in row])
+                            
+                            result_data = {
+                                'algorithm': algorithm,
+                                'steps': 0,
+                                'visited': 0,
+                                'states': 0,
+                                'time': 0.0,
+                                'success': False
+                            }
+                            
+                            if maze_state not in history_groups:
+                                history_groups[maze_state] = {
+                                    'rows': maze_rows,
+                                    'cols': maze_cols,
+                                    'results': []
+                                }
+                            history_groups[maze_state]['results'].append(result_data)
+                            
                             history_list.append((
                                 f"N{map_names}",
                                 algorithm,
@@ -169,10 +257,22 @@ while running:
                     game_won = False
                     solving_path = None
                     move_count = 0
+                    victory_frame = 0  # Reset victory frame counter
 
                 # NÚT HISTORY
                 elif history_rect.collidepoint(event.pos):
-                    history_list.clear()
+                    show_history_panel = not show_history_panel
+                    history_scroll_offset = 0  # Reset scroll khi mở panel
+
+        # Speed control buttons - có thể dùng mọi lúc, kể cả khi đang auto solve
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            # NÚT GIẢM TỐC ĐỘ AUTO SOLVE
+            if speed_decrease_rect.collidepoint(event.pos):
+                SOLVER_MOVE_INTERVAL = min(SOLVER_MOVE_INTERVAL + 100, 4000)  # Tăng interval = chậm hơn, max 4000ms (0.2x)
+
+            # NÚT TĂNG TỐC ĐỘ AUTO SOLVE
+            elif speed_increase_rect.collidepoint(event.pos):
+                SOLVER_MOVE_INTERVAL = max(SOLVER_MOVE_INTERVAL - 100, 100)   # Giảm interval = nhanh hơn, min 100ms (8x)
 
        
     # Xử lý di chuyển bằng bàn phím - chỉ khi không auto solve
@@ -202,30 +302,84 @@ while running:
                         board_before_player_moves = (copy.deepcopy(player_pos), [row[:] for row in painted_tiles])
                     
                     old_pos = player_pos[:]  # Lưu vị trí cũ để check thay đổi
-                    new_pos, painted_tiles = move_player(player_pos, MAZE_ROWS, MAZE_COLS, move_direction, current_maze, painted_tiles)
+                    
+                    # Chỉ tính toán vị trí mới mà không tô màu ngay
+                    row, col = player_pos[0], player_pos[1]
+                    dr, dc = 0, 0
+                    if move_direction == "UP": dr = -1
+                    elif move_direction == "DOWN": dr = 1
+                    elif move_direction == "LEFT": dc = -1
+                    elif move_direction == "RIGHT": dc = 1
+                    
+                    # Tính toán vị trí mới mà không tô màu
+                    while (0 <= row + dr < maze_rows and 0 <= col + dc < maze_cols and 
+                           current_maze[row + dr][col + dc] == PATH):
+                        row += dr
+                        col += dc
+                    
+                    new_pos = [row, col]
                     
                     # Nếu position thay đổi, bắt đầu smooth movement
                     if old_pos != new_pos:
                         player_target_pos = new_pos[:]
                         is_moving_smooth = True
                         movement_progress = 0.0
-                        game_won = check_win_condition(current_maze, painted_tiles)
                         
                     time_since_last_player_move = 0  # Reset cooldown
                     move_count += 1
                 
      # Xử lý smooth movement - áp dụng cho cả manual và auto solve
     if is_moving_smooth:
-        # Tính toán vị trí hiển thị theo interpolation
+        # Tính toán vị trí hiển thị theo interpolation với easing
         start_row, start_col = player_pos
         target_row, target_col = player_target_pos
+
+        # Cập nhật progress - tự động điều chỉnh tốc độ khi auto solve
+        if solving_path:
+            # Auto solve: điều chỉnh tốc độ smooth movement theo SOLVER_MOVE_INTERVAL
+            # Đảm bảo smooth movement hoàn thành trong khoảng thời gian SOLVER_MOVE_INTERVAL
+            target_smooth_duration = SOLVER_MOVE_INTERVAL * 0.8  # 80% của interval để có buffer
+            required_speed = (TILE_SIZE / target_smooth_duration) * (1000 / 60)  # Tính tốc độ cần thiết
+            movement_progress += max(required_speed, SMOOTH_MOVE_SPEED) / TILE_SIZE
+        else:
+            # Manual: dùng tốc độ cố định
+            movement_progress += SMOOTH_MOVE_SPEED / TILE_SIZE
         
-        # Lerp (Linear interpolation) giữa vị trí hiện tại và đích
-        player_visual_pos[0] = start_row + (target_row - start_row) * movement_progress
-        player_visual_pos[1] = start_col + (target_col - start_col) * movement_progress
+        # Áp dụng easing function để có chuyển động mượt mà hơn
+        if movement_progress <= 1.0:
+            # Sử dụng ease_in_out_quart để có chuyển động chậm hơn ở đầu và cuối
+            eased_progress = ease_in_out_quart(min(movement_progress, 1)) 
+            
+            # Tính toán vị trí hiển thị với easing
+            player_visual_pos[0] = start_row + (target_row - start_row) * eased_progress
+            player_visual_pos[1] = start_col + (target_col - start_col) * eased_progress
+
+        # Tô màu tất cả các ô trên đường đi dựa trên eased progress để đồng bộ với phi thuyền
+        # Tạo danh sách các ô từ start đến target
+        path_tiles = []
+        current_r, current_c = start_row, start_col
+        dr = 1 if target_row > start_row else (-1 if target_row < start_row else 0)
+        dc = 1 if target_col > start_col else (-1 if target_col < start_col else 0)
         
-        # Cập nhật progress
-        movement_progress += SMOOTH_MOVE_SPEED / TILE_SIZE
+        # Thu thập tất cả ô trên đường đi
+        while current_r != target_row or current_c != target_col:
+            path_tiles.append((current_r, current_c))
+            if current_r != target_row:
+                current_r += dr
+            if current_c != target_col:
+                current_c += dc
+        path_tiles.append((target_row, target_col))  # Thêm ô đích
+        
+        # Tô màu dần theo eased progress để đồng bộ với chuyển động phi thuyền
+        if len(path_tiles) > 0:
+            # Sử dụng eased_progress thay vì movement_progress để đồng bộ
+            progress_to_use = ease_in_out_quart(min(movement_progress, 1.0)) if movement_progress <= 1.0 else 1.0
+            tiles_to_paint = int(progress_to_use * len(path_tiles))
+            for i in range(min(tiles_to_paint + 1, len(path_tiles))):  # +1 để luôn tô ít nhất 1 ô
+                tile_row, tile_col = path_tiles[i]
+                if (0 <= tile_row < maze_rows and 0 <= tile_col < maze_cols and 
+                    current_maze[tile_row][tile_col] == PATH):
+                    painted_tiles[tile_row][tile_col] = True
         
         # Hoàn thành di chuyển
         if movement_progress >= 1.0:
@@ -233,6 +387,21 @@ while running:
             is_moving_smooth = False
             player_pos = player_target_pos[:]
             player_visual_pos = player_target_pos[:]
+            
+            # Đảm bảo ô cuối được tô màu
+            if (0 <= player_pos[0] < maze_rows and 
+                0 <= player_pos[1] < maze_cols and 
+                current_maze[player_pos[0]][player_pos[1]] == PATH):
+                painted_tiles[player_pos[0]][player_pos[1]] = True
+            
+            # Kiểm tra win condition sau khi hoàn thành di chuyển
+            prev_game_won = game_won  # Lưu trạng thái cũ
+            game_won = check_win_condition(current_maze, painted_tiles)
+            
+            # Reset victory frame counter khi vừa chiến thắng
+            if game_won and not prev_game_won:
+                victory_frame = 0
+            
             # Reset direction nếu không còn path để đi
             if not solving_path:
                 current_auto_direction = None
@@ -246,7 +415,22 @@ while running:
             if solving_path:
                 next_move = solving_path.pop(0)
                 old_pos = player_pos[:]  # Lưu vị trí cũ
-                new_pos, painted_tiles = move_player(player_pos, MAZE_ROWS, MAZE_COLS, next_move, current_maze, painted_tiles)
+                
+                # Chỉ tính toán vị trí mới mà không tô màu ngay (giống manual control)
+                row, col = player_pos[0], player_pos[1]
+                dr, dc = 0, 0
+                if next_move == "UP": dr = -1
+                elif next_move == "DOWN": dr = 1
+                elif next_move == "LEFT": dc = -1
+                elif next_move == "RIGHT": dc = 1
+                
+                # Tính toán vị trí mới mà không tô màu
+                while (0 <= row + dr < maze_rows and 0 <= col + dc < maze_cols and 
+                       current_maze[row + dr][col + dc] == PATH):
+                    row += dr
+                    col += dc
+                
+                new_pos = [row, col]
                 
                 # Lưu direction cho phi thuyền
                 current_auto_direction = next_move
@@ -265,12 +449,11 @@ while running:
                     movement_progress = 0.0
                 move_count += 1
                 
-                if not solving_path:
-                    game_won = check_win_condition(current_maze, painted_tiles)
+                # Chỉ kiểm tra win khi không còn solving_path và không đang smooth movement
+                if not solving_path and not is_moving_smooth:
                     # Chỉ reset direction khi không còn smooth movement
-                    if not is_moving_smooth:
-                        current_auto_direction = None  # Reset direction khi hoàn thành
-                        last_auto_direction = None     # Reset backup direction
+                    current_auto_direction = None  # Reset direction khi hoàn thành
+                    last_auto_direction = None     # Reset backup direction
 
     # --- VẼ LÊN MÀN HÌNH ---
     screen.fill(BLACK)
@@ -282,25 +465,75 @@ while running:
     draw_planets(screen)
     # Sử dụng direction phù hợp: ưu tiên current, fallback sang last khi đang auto solve hoặc smooth movement
     auto_dir_to_use = current_auto_direction if current_auto_direction else (last_auto_direction if (solving_path or is_moving_smooth) else None)
-    # if auto_dir_to_use:
-    #     print(f"📡 Truyền direction vào draw_board: '{auto_dir_to_use}'")
     draw_board(screen, current_maze, painted_tiles, player_visual_pos, BOARD_X, BOARD_Y, keys, player_pos, auto_dir_to_use)
 
     # Draw star particles on top of everything
     draw_star_particles(screen)
 
-    draw_button(screen, font_small, map_rect, DARK_BLUE, f"MAP: {map_names[current_map_index]}")
-    draw_button(screen, font_small, player_rect, DARK_BLUE, algorithm)
-    draw_button(screen, font_small, solver_rect, DARK_BLUE, "SOLVE")
-    draw_button(screen, font_small, restart_rect, DARK_BLUE, "RESTART")
-    draw_button(screen, font_small, history_rect, DARK_BLUE, "CLEAR HISTORY")
+    # UI Buttons with 3D cosmic style
+    draw_button(screen, font_small, map_rect, DARK_BLUE, f"MAP: {map_names[current_map_index]}", "info")
+    draw_button(screen, font_small, player_rect, DARK_BLUE, algorithm, "info") 
+    draw_button(screen, font_small, solver_rect, DARK_BLUE, "SOLVE", "primary")
+    draw_button(screen, font_small, restart_rect, DARK_BLUE, "RESTART", "success")
+    draw_button(screen, font_small, history_rect, DARK_BLUE, "CLEAR HISTORY", "info")
 
-    draw_move_count(screen, 840, 20, font_small, move_count)
+    # Speed control buttons with warning style  
+    draw_button(screen, font_small, speed_decrease_rect, DARK_BLUE, "-", "warning")
+    draw_button(screen, font_small, speed_increase_rect, DARK_BLUE, "+", "warning")
+    draw_button(screen, font_small, restart_rect, DARK_BLUE, "RESTART")
+    draw_button(screen, font_small, history_rect, DARK_BLUE, "HISTORY")
+
+    # Speed control UI
+    draw_button(screen, font_small, speed_decrease_rect, DARK_BLUE, "-")
+    draw_button(screen, font_small, speed_increase_rect, DARK_BLUE, "+")
     
-    # draw_history_box(screen, font_small, history_list)
+    # Speed display - tính dựa trên BASE_SOLVER_INTERVAL
+    speed_multiplier = BASE_SOLVER_INTERVAL / SOLVER_MOVE_INTERVAL
+    speed_text = f"Speed: {speed_multiplier:.1f}x"  # Hiển thị tốc độ với 1 chữ số thập phân
+    pygame.draw.rect(screen, DARK_BLUE, speed_display_rect)
+    pygame.draw.rect(screen, WHITE, speed_display_rect, 2)
+    text_surface = font_small.render(speed_text, True, WHITE)
+    text_rect = text_surface.get_rect(center=speed_display_rect.center)
+    screen.blit(text_surface, text_rect)
+
+    draw_move_count(screen, MOVE_COUNT_X, MOVE_COUNT_Y, font_small, move_count)
+    
+    # Draw history panel if visible
+    if show_history_panel:
+        # Panel và close button rects
+        panel_rect = pygame.Rect(200, 50, 800, 600)
+        close_rect = pygame.Rect(panel_rect.right - 40, panel_rect.top + 10, 30, 30)
+        
+        # Colors dictionary cho panel
+        colors = {
+            'bg': (30, 40, 60, 220),  # Background với alpha
+            'border': (100, 150, 200),
+            'title': WHITE,
+            'white': WHITE,
+            'black': BLACK,
+            'label': (200, 200, 200),
+            'box': (60, 80, 120),
+            'wall': (100, 100, 100),
+            'path': (50, 50, 50)
+        }
+        
+        # Fonts dictionary cho panel
+        fonts = {
+            'state': font_large,
+            'btn': font_small,
+            'label': font_small
+        }
+        
+        # Vẽ panel với semi-transparent background
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 128))  # Semi-transparent black
+        screen.blit(overlay, (0, 0))
+        
+        # Vẽ history panel
+        draw_history_panel(screen, history_groups, history_scroll_offset, panel_rect, close_rect, fonts, colors, None)
     
     if game_won:
-        draw_win_message(screen, font_large)
+        draw_cosmic_victory(screen, WINDOW_WIDTH, WINDOW_HEIGHT, victory_frame)
 
     pygame.display.flip()
     

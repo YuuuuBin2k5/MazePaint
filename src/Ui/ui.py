@@ -1,12 +1,16 @@
 # ui.py
+import math
 import random
 import pygame
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from config import *
 import time
-from spaceship import draw_spaceship_player, update_star_particles, draw_star_particles
-from wall import asteroid_wall_renderer
-
-
+from .spaceship import *
+from .wall import asteroid_wall_3d_renderer
+from .victory import draw_cosmic_victory
+ 
 # Background elements - Các thành phần nền
 
 def get_movement_direction(keys):
@@ -41,11 +45,11 @@ planet_wave_cooldown = 0  # Thời gian nghỉ giữa các wave
 
 # Trail system - Hệ thống vết di chuyển
 player_trail = []  # Lưu các vị trí gần đây của player
-max_trail_length = 5  # Số lượng vết tối đa
+max_trail_length = MAX_TRAIL_LENGTH  # Sử dụng từ config
 # ============================================================================
 
 
-def render_text_with_outline(text, font, text_color, outline_color, outline_width=1):
+def render_text_with_outline(text, font, text_color, outline_color, outline_width=TEXT_OUTLINE_WIDTH):
     base = font.render(text, True, text_color)
     size = base.get_size()
     surf = pygame.Surface((size[0] + 2 * outline_width, size[1] + 2 * outline_width), pygame.SRCALPHA)
@@ -57,14 +61,107 @@ def render_text_with_outline(text, font, text_color, outline_color, outline_widt
     surf.blit(base, (outline_width, outline_width))
     return surf
 
-def draw_button(screen, font, rect, color, text=None):
-    shadow_rect = rect.move(3, 3)
-    pygame.draw.rect(screen, SHADOW_COLOR, shadow_rect, border_radius=8)
-    pygame.draw.rect(screen, color, rect, border_radius=8)
-    pygame.draw.rect(screen, BLACK, rect, 2, border_radius=8)
+def draw_button(screen, font, rect, color, text=None, button_style="default"):
+    """
+    Draw 3D style button with different styles for space theme
+    button_style options: "default", "primary", "success", "info", "warning"
+    """
+    if button_style == "primary":
+        # Main action buttons (SOLVE, etc.) - Blue cosmic theme
+        base_color = (70, 130, 200)
+        highlight_color = (100, 160, 230)
+        shadow_color = (40, 80, 140)
+        border_color = (120, 180, 255)
+    elif button_style == "success":
+        # Success/positive buttons (RESTART) - Green cosmic theme  
+        base_color = (80, 160, 120)
+        highlight_color = (110, 190, 150)
+        shadow_color = (50, 110, 80)
+        border_color = (140, 220, 180)
+    elif button_style == "info":
+        # Info buttons (MAP, HISTORY) - Cyan cosmic theme
+        base_color = (60, 140, 160)
+        highlight_color = (90, 170, 190)
+        shadow_color = (30, 100, 120)
+        border_color = (120, 200, 220)
+    elif button_style == "warning":
+        # Speed control buttons - Orange cosmic theme
+        base_color = (180, 120, 60)
+        highlight_color = (210, 150, 90)
+        shadow_color = (130, 80, 30)
+        border_color = (240, 180, 120)
+    else:
+        # Default - use provided color
+        base_color = color
+        highlight_color = tuple(min(255, c + 40) for c in color)
+        shadow_color = tuple(max(0, c - 40) for c in color)
+        border_color = tuple(min(255, c + 60) for c in color)
+    
+    # 3D button layers
+    # 1. Deep shadow (bottom layer)
+    deep_shadow_rect = rect.move(4, 4)
+    pygame.draw.rect(screen, (0, 0, 0, BUTTON_SHADOW_ALPHA), deep_shadow_rect, border_radius=BUTTON_BORDER_RADIUS)
+    
+    # 2. Main shadow
+    shadow_rect = rect.move(2, 2)  
+    pygame.draw.rect(screen, shadow_color, shadow_rect, border_radius=8)
+    
+    # 3. Main button body
+    pygame.draw.rect(screen, base_color, rect, border_radius=8)
+    
+    # 4. Top highlight (gives 3D effect)
+    highlight_rect = pygame.Rect(rect.x, rect.y, rect.width, rect.height // 3)
+    highlight_surf = pygame.Surface((highlight_rect.width, highlight_rect.height), pygame.SRCALPHA)
+    pygame.draw.rect(highlight_surf, (*highlight_color, 120), (0, 0, highlight_rect.width, highlight_rect.height), border_radius=8)
+    screen.blit(highlight_surf, highlight_rect)
+    
+    # 5. Border glow
+    pygame.draw.rect(screen, border_color, rect, 2, border_radius=8)
+    
+    # 6. Inner subtle highlight line
+    inner_rect = pygame.Rect(rect.x + 2, rect.y + 1, rect.width - 4, 1)
+    pygame.draw.rect(screen, border_color, inner_rect)
+    
+    # 7. Text with enhanced styling
     if text:
-        text_surf = render_text_with_outline(text, font, WHITE, BLACK, 1)
+        text_surf = render_text_with_outline(text, font, WHITE, (20, 20, 40), 1)
         text_rect = text_surf.get_rect(center=rect.center)
+        screen.blit(text_surf, text_rect)
+
+def draw_button_pressed(screen, font, rect, color, text=None, button_style="default"):
+    """
+    Draw 3D style button in pressed state (when clicked)
+    """
+    if button_style == "primary":
+        base_color = (50, 100, 160)
+        shadow_color = (30, 60, 110)
+    elif button_style == "success":
+        base_color = (60, 130, 90)
+        shadow_color = (40, 90, 60)
+    elif button_style == "info":
+        base_color = (40, 110, 130)
+        shadow_color = (20, 80, 100)
+    elif button_style == "warning":
+        base_color = (150, 90, 40)
+        shadow_color = (110, 60, 20)
+    else:
+        base_color = tuple(max(0, c - 30) for c in color)
+        shadow_color = tuple(max(0, c - 50) for c in color)
+    
+    # Pressed effect - no shadow, darker colors, slightly offset
+    pressed_rect = rect.move(1, 1)
+    
+    # 1. Main button body (darker)
+    pygame.draw.rect(screen, base_color, pressed_rect, border_radius=8)
+    
+    # 2. Inner shadow (inverted effect)
+    inner_shadow = pygame.Rect(pressed_rect.x + 1, pressed_rect.y + 1, pressed_rect.width - 2, pressed_rect.height - 2)
+    pygame.draw.rect(screen, shadow_color, inner_shadow, 1, border_radius=6)
+    
+    # 3. Text (slightly offset for pressed effect)
+    if text:
+        text_surf = render_text_with_outline(text, font, (220, 220, 220), (10, 10, 30), 1)
+        text_rect = text_surf.get_rect(center=(pressed_rect.centerx, pressed_rect.centery + 1))
         screen.blit(text_surf, text_rect)
 
 def draw_board(screen, maze, painted_tiles, player_pos, board_x, board_y, keys=None, logical_pos=None, auto_direction=None):
@@ -78,7 +175,7 @@ def draw_board(screen, maze, painted_tiles, player_pos, board_x, board_y, keys=N
             rect = pygame.Rect(board_x + c * TILE_SIZE, board_y + r * TILE_SIZE, TILE_SIZE, TILE_SIZE)
             
             if maze[r][c] == 1:  # Tường - vẽ với hệ thống thiên thạch mới
-                wall_tile = asteroid_wall_renderer.get_wall_tile(r, c, TILE_SIZE)
+                wall_tile = asteroid_wall_3d_renderer.get_wall_tile(r, c, TILE_SIZE)
                 screen.blit(wall_tile, (rect.x, rect.y))
                     
             else:  # Ô có thể di chuyển
@@ -160,21 +257,161 @@ def draw_history_box(screen, font, history_list):
         for line in lines:
             info_surf = font.render(line, True, WHITE)
             screen.blit(info_surf, (box_rect.x + 10, y_offset))
-            y_offset += 25
-
-def draw_win_message(screen, font):
-    window_rect = screen.get_rect()
-    text = font.render("YOU WIN!", True, COLOR_FONT)
-    text_rect = text.get_rect(center=window_rect.center)
-    bg_rect = text_rect.inflate(40, 40)
-    bg_surface = pygame.Surface(bg_rect.size, pygame.SRCALPHA)
-    bg_surface.fill((0, 0, 0, 150))
-    screen.blit(bg_surface, bg_rect)
-    screen.blit(text, text_rect)
+            y_offset += HISTORY_Y_OFFSET
 
 def draw_move_count(screen, x, y, font, count):
     text_surf = render_text_with_outline(f"Moves: {count}", font, WHITE, BLACK, 1)
     screen.blit(text_surf, (x, y))
+
+def draw_text_outline(screen, text, pos, text_color, outline_color, outline_width, center=False, font=None):
+    """Helper function để vẽ text với outline"""
+    if font is None:
+        font = pygame.font.Font(None, 24)
+    
+    # Tạo text surface
+    text_surf = font.render(text, True, text_color)
+    
+    # Tạo outline surface
+    outline_surf = font.render(text, True, outline_color)
+    
+    # Tính vị trí
+    if center:
+        x, y = pos
+        text_rect = text_surf.get_rect(center=(x, y))
+        pos = (text_rect.x, text_rect.y)
+    
+    # Vẽ outline bằng cách vẽ text ở các vị trí lân cận
+    for dx in range(-outline_width, outline_width + 1):
+        for dy in range(-outline_width, outline_width + 1):
+            if dx != 0 or dy != 0:
+                screen.blit(outline_surf, (pos[0] + dx, pos[1] + dy))
+    
+    # Vẽ text chính
+    screen.blit(text_surf, pos)
+
+def draw_text(screen, text, pos, color, center=False, font=None):
+    """Helper function để vẽ text đơn giản"""
+    if font is None:
+        font = pygame.font.Font(None, 24)
+    
+    text_surf = font.render(text, True, color)
+    
+    if center:
+        x, y = pos
+        text_rect = text_surf.get_rect(center=(x, y))
+        screen.blit(text_surf, text_rect)
+    else:
+        screen.blit(text_surf, pos)
+
+def flat_to_matrix(flat_list, rows, cols):
+    """Chuyển đổi list phẳng thành matrix 2D"""
+    matrix = []
+    for i in range(rows):
+        row = []
+        for j in range(cols):
+            idx = i * cols + j
+            if idx < len(flat_list):
+                row.append(flat_list[idx])
+            else:
+                row.append(0)
+        matrix.append(row)
+    return matrix
+
+def draw_matrix(screen, matrix, x, y, cell_width, cell_height, fonts, colors, tiles):
+    """Vẽ matrix mini maze"""
+    for i, row in enumerate(matrix):
+        for j, cell in enumerate(row):
+            rect = pygame.Rect(x + j * cell_width, y + i * cell_height, cell_width, cell_height)
+            if cell == 1:  # Wall
+                pygame.draw.rect(screen, colors.get('wall', (100, 100, 100)), rect)
+            else:  # Path
+                pygame.draw.rect(screen, colors.get('path', (50, 50, 50)), rect)
+
+def draw_history_panel(screen, history_groups, scroll_offset, panel_rect, close_rect, fonts, colors, tiles):
+    """Vẽ panel lịch sử theo nhóm, with ms time and layout.
+
+    `history_groups` expected to be an ordered dict or dict mapping
+    state_tuple -> {'rows':R, 'cols':C, 'results':[{'algorithm':..,'steps':..,'visited_count':..,'generated_count':..,'execution_time':..}, ...]}
+    """
+    # 1. Vẽ các thành phần chung của panel
+    pygame.draw.rect(screen, colors['bg'], panel_rect, border_radius=15)
+    pygame.draw.rect(screen, colors['border'], panel_rect, 3, border_radius=15)
+    draw_text_outline(screen, "Solve History", (panel_rect.centerx, panel_rect.top + 40),
+                      colors['title'], colors['black'], 2, center=True, font=fonts['state'])
+    pygame.draw.rect(screen, (200, 50, 50), close_rect, border_radius=5)
+    draw_text(screen, "X", close_rect.center, colors['white'], center=True, font=fonts['btn'])
+
+    # 2. Tạo vùng cắt và vẽ tiêu đề cho bảng
+    header_y = panel_rect.y + 85
+    content_y_start = header_y + 35
+    content_rect = pygame.Rect(panel_rect.x + 20, content_y_start, panel_rect.width - 40, panel_rect.bottom - content_y_start - 20)
+
+    # Định nghĩa vị trí X cho từng cột
+    table_x_start = panel_rect.x + 160
+    col_x = {
+        "algo": table_x_start,
+        "steps": table_x_start + 130,
+        "visited": table_x_start + 210,
+        "generated": table_x_start + 310,
+        "time": table_x_start + 430,
+    }
+
+    # Vẽ dòng tiêu đề của bảng
+    draw_text_outline(screen, "Algorithm", (col_x["algo"], header_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+    draw_text_outline(screen, "Steps", (col_x["steps"], header_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+    draw_text_outline(screen, "Visited", (col_x["visited"], header_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+    draw_text_outline(screen, "Generated", (col_x["generated"], header_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+    draw_text_outline(screen, "Time (ms)", (col_x["time"], header_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+
+    # Vẽ đường kẻ ngang dưới tiêu đề
+    pygame.draw.line(screen, colors['border'], (panel_rect.x + 20, header_y + 25), (panel_rect.right - 20, header_y + 25), 2)
+
+    # 3. Vẽ nội dung các hàng
+    screen.set_clip(content_rect)
+
+    if not history_groups:
+        draw_text_outline(screen, "No history yet.", panel_rect.center, colors['white'], colors['black'], 1, center=True, font=fonts['label'])
+    else:
+        y_cursor = content_rect.top - scroll_offset
+
+        group_padding, row_height, header_height = 40, 35, 110
+
+        # iterate in insertion order if dict-like, else iterate items
+        for state_tuple, group_data in history_groups.items():
+            group_height = header_height + (len(group_data['results']) * row_height) + group_padding
+
+            if y_cursor + group_height > content_rect.top and y_cursor < content_rect.bottom:
+                # Vẽ puzzle mini đại diện cho nhóm
+                rows, cols = group_data.get('rows', MAZE_ROWS), group_data.get('cols', MAZE_COLS)
+                matrix = flat_to_matrix(list(state_tuple), rows, cols) if isinstance(state_tuple, (list, tuple)) else flat_to_matrix(list(state_tuple), rows, cols)
+                puzzle_w, puzzle_h = 100, 100
+                puzzle_x, puzzle_y = content_rect.left + 10, y_cursor + 5
+
+                frame_rect = pygame.Rect(puzzle_x, puzzle_y, puzzle_w, puzzle_h)
+                padding = 2
+                grid_w, grid_h = puzzle_w - padding*2, puzzle_h - padding*2
+                cell_width, cell_height = max(8, grid_w // cols), max(8, grid_h // rows)
+                pygame.draw.rect(screen, colors['box'], frame_rect, border_radius=8)
+                draw_matrix(screen, matrix, puzzle_x + padding, puzzle_y + padding, cell_width, cell_height, fonts, colors, tiles)
+
+                # Vẽ bảng kết quả cho nhóm
+                for i, result in enumerate(group_data['results']):
+                    # Căn chỉnh vị trí Y của hàng đầu tiên ngang với puzzle mini
+                    row_y = puzzle_y + (i * row_height)
+
+                    draw_text_outline(screen, result.get('algorithm', result.get('method', 'N/A')), (col_x["algo"], row_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+                    draw_text_outline(screen, str(result.get('steps', result.get('steps', 0))), (col_x["steps"], row_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+                    draw_text_outline(screen, str(result.get('visited_count', result.get('visited', 'N/A'))), (col_x["visited"], row_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+                    draw_text_outline(screen, str(result.get('generated_count', result.get('states', 'N/A'))), (col_x["generated"], row_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+
+                    # Chuyển đổi giây sang mili giây (* 1000) và làm tròn
+                    exec_time = result.get('execution_time', result.get('time', 0.0))
+                    time_ms = exec_time * 1000
+                    draw_text_outline(screen, f"{time_ms:.1f}", (col_x["time"], row_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+
+            y_cursor += group_height
+
+    screen.set_clip(None)
 
 #===========================================================================
 # PLANET IMAGES - Ảnh hành tinh
@@ -186,13 +423,13 @@ def init_planet_images():
     if not planet_imgs:  # Chỉ load 1 lần
         try:
             planet_imgs = [
-                pygame.image.load("./asset/image/planet1.png"),
-                pygame.image.load("./asset/image/planet2.png"),
-                pygame.image.load("./asset/image/planet3.png"),
-                pygame.image.load("./asset/image/planet4.png"),
-                pygame.image.load("./asset/image/planet5.png"),
-                pygame.image.load("./asset/image/planet6.png"),
-                pygame.image.load("./asset/image/planet7.png")
+                pygame.image.load("asset/image/planet1.png"),
+                pygame.image.load("asset/image/planet2.png"),
+                pygame.image.load("asset/image/planet3.png"),
+                pygame.image.load("asset/image/planet4.png"),
+                pygame.image.load("asset/image/planet5.png"),
+                pygame.image.load("asset/image/planet6.png"),
+                pygame.image.load("asset/image/planet7.png")
             ]
         except Exception as e:
             print(f"⚠️ Lỗi khi load ảnh hành tinh: {e}")
@@ -303,7 +540,6 @@ def create_planet_wave():
         
         wave.append([scaled_img, size, y, speed])
     
-    print(f"🌎 Tạo wave với {len(wave)} hành tinh khác nhau")
     return wave
 
 def spawn_planet():
@@ -351,15 +587,14 @@ def update_planet_system():
         if new_wave:
             planet_wave_queue = new_wave
             planet_wave_active = True
-            planet_spawn_delay = 60  # Delay trước khi spawn hành tinh đầu tiên
-            print(f"🌍 Tạo wave mới với {len(new_wave)} hành tinh")
+            planet_spawn_delay = PLANET_SPAWN_DELAY  # Delay trước khi spawn hành tinh đầu tiên
+    
     
     # Nếu có wave active -> spawn theo delay
     if planet_wave_active and planet_wave_queue:
         if planet_spawn_delay <= 0:
             spawn_planet()
             planet_spawn_delay = random.randint(60, 120)  # 1-2 giây delay giữa các hành tinh
-            print(f"🚀 Spawn hành tinh, còn lại: {len(planet_wave_queue)}")
         else:
             planet_spawn_delay -= 1
     
@@ -367,7 +602,6 @@ def update_planet_system():
     if planet_wave_active and len(planet_wave_queue) == 0:
         planet_wave_active = False
         planet_wave_cooldown = random.randint(180, 360)  # 3-6 giây cooldown sau khi spawn xong
-        print(f"✅ Wave spawn xong, đợi hành tinh bay hết màn hình...")
 
 def draw_planets(screen):
     """

@@ -2,6 +2,9 @@
 import pygame
 import math
 import random
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from config import *
 
 # Load spaceship image once at module level
@@ -15,9 +18,8 @@ def load_spaceship_image():
     
     if spaceship_image is None:
         try:
-            # Try loading from spaceship.png first
-            spaceship_image = pygame.image.load("asset/image/spaceship/ship_7.svg")
-            print("✅ Loaded spaceship.png")
+            # Try loading from spaceship.png first - fixed path for ui folder
+            spaceship_image = pygame.image.load("./asset/image/spaceship/ship_7.svg")
         except:
             try:
                 # Create simple spaceship if no image found
@@ -28,7 +30,7 @@ def load_spaceship_image():
                 spaceship_image = create_fallback_spaceship()
         
         # Scale to appropriate size
-        size = PLAYER_RADIUS * 4
+        size = 40  # Fixed size instead of PLAYER_RADIUS * 4
         spaceship_image = pygame.transform.scale(spaceship_image, (size, size))
         
         # Pre-rotate images for each direction to avoid runtime rotation
@@ -44,7 +46,7 @@ def load_spaceship_image():
 
 def create_simple_spaceship():
     """Tạo spaceship đơn giản nếu không có ảnh"""
-    size = PLAYER_RADIUS * 4
+    size = 40  # Fixed size instead of PLAYER_RADIUS * 4
     surface = pygame.Surface((size, size), pygame.SRCALPHA)
     
     # Vẽ tam giác spaceship đơn giản
@@ -61,7 +63,7 @@ def create_simple_spaceship():
 
 def create_fallback_spaceship():
     """Tạo spaceship fallback đơn giản nhất"""
-    size = PLAYER_RADIUS * 4
+    size = 40  # Fixed size instead of PLAYER_RADIUS * 4
     surface = pygame.Surface((size, size), pygame.SRCALPHA)
     pygame.draw.circle(surface, (200, 200, 255), (size//2, size//2), size//3)
     return surface
@@ -211,3 +213,16 @@ def draw_static_spaceship(screen, center_x, center_y):
 def draw_animated_spaceship(screen, center_x, center_y):
     """Draw spaceship - same as static for simplicity"""
     draw_spaceship_player(screen, center_x, center_y)
+
+
+# Easing functions for smooth movement
+def ease_in_out_quart(t):
+    """Easing function mạnh hơn: chậm hơn ở đầu/cuối, nhanh hơn ở giữa"""
+    if t < 0.5:
+        return 8 * t * t * t * t
+    else:
+        return 1 - pow(-2 * t + 2, 4) / 2
+
+def ease_in_out_sine(t):
+    """Easing function mượt mà: dùng sine wave"""
+    return -(math.cos(math.pi * t) - 1) / 2

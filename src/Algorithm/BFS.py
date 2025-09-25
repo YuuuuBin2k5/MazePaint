@@ -3,7 +3,7 @@ import collections
 import random
 import time
 from config import MAZE_ROWS, MAZE_COLS
-from func_algorithm import simulate_move, MOVES, reconstruct_path
+from .func_algorithm import simulate_move, MOVES, reconstruct_path
 
 def bfs_solve(maze, start_pos):  
     total_path_tiles = sum(r.count(0) for r in maze)
