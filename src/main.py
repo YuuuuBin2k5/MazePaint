@@ -95,6 +95,9 @@ solver_rect = pygame.Rect(BUTTON_X, SOLVER_BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT
 restart_rect = pygame.Rect(BUTTON_X, RESTART_BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT)
 history_rect = pygame.Rect(BUTTON_X, HISTORY_BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT)
 
+# Rect for in-game Menu button (will be set when drawing)
+menu_button_rect = None
+
 # Speed control buttons
 speed_decrease_rect = pygame.Rect(SPEED_DECREASE_X, SPEED_BUTTONS_Y, SPEED_BUTTON_WIDTH, SPEED_BUTTON_HEIGHT)
 speed_increase_rect = pygame.Rect(SPEED_INCREASE_X, SPEED_BUTTONS_Y, SPEED_BUTTON_WIDTH, SPEED_BUTTON_HEIGHT)
@@ -215,6 +218,19 @@ while running:
     
     # Cập nhật game manager
     game_manager.update()
+    # Precompute in-game Menu button rect so event handling (which happens next) can use it
+    if game_manager.is_in_game():
+        try:
+            # Match the placement used in MainMenu.draw_menu_button: top-right with margins
+            margin_x = 20
+            margin_y = 20
+            button_width = 120
+            button_height = 40
+            menu_button_rect = pygame.Rect(game_manager.width - margin_x - button_width, margin_y, button_width, button_height)
+        except Exception:
+            menu_button_rect = None
+    else:
+        menu_button_rect = None
     
     # === XỬ LÝ EVENTS ===
     for event in pygame.event.get():
@@ -335,6 +351,14 @@ while running:
                     # Clear history button (using same logic as old history button)
                     elif history_rect.collidepoint(mouse_pos):
                         history_groups.clear()
+                        sound_manager.play_button_sound()
+
+                # In-game Menu button (when in GAME state)
+                if game_manager.is_in_game() and menu_button_rect and menu_button_rect.collidepoint(mouse_pos):
+                    # Simulate ESC keydown event and let game_manager handle the transition
+                    fake_event = pygame.event.Event(pygame.KEYDOWN, {'key': pygame.K_ESCAPE})
+                    result = game_manager.handle_event(fake_event)
+                    if result == "BACK_TO_MENU":
                         sound_manager.play_button_sound()
             
             # History panel scroll handling
@@ -590,7 +614,7 @@ while running:
     # Render theo trạng thái hiện tại
     if game_manager.is_in_menu():
         # Vẽ menu chính
-        game_manager.draw(screen)
+        game_manager.main_menu.draw(screen)
     elif game_manager.is_in_spaceship_select():
         # Vẽ menu chọn phi thuyền
         game_manager.draw(screen)
@@ -635,6 +659,12 @@ while running:
         screen.blit(text_surface, text_rect)
 
         draw_move_count(screen, MOVE_COUNT_X, MOVE_COUNT_Y, font_small, move_count)
+        # Draw in-game Menu button and store its rect for click handling
+        try:
+            menu_button_rect = game_manager.main_menu.draw_menu_button(screen, label="Menu")
+        except Exception:
+            # If something goes wrong rendering the menu button, ensure it's None
+            menu_button_rect = None
         
         # Draw history panel if visible
         if show_history_panel:

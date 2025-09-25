@@ -270,3 +270,38 @@ class MainMenu:
         if hint_surface:
             hint_rect = hint_surface.get_rect(center=(self.center_x, self.height - 25))
             screen.blit(hint_surface, hint_rect)
+        
+    def draw_menu_button(self, screen, label="Menu"):
+        """Vẽ nút menu (dùng trong trang chơi). Trả về rect của nút."""
+        # Place button at top-right area of game screen for consistent UI
+        # Use a small margin from the window border so it doesn't overlap other UI
+        margin_x = 20
+        margin_y = 20
+        button_width = 120
+        button_height = 40
+        button_rect = pygame.Rect(self.width - margin_x - button_width, margin_y, button_width, button_height)
+        # Styling consistent with menu theme
+        pygame.draw.rect(screen, DARK_BLUE, button_rect, border_radius=8)
+        pygame.draw.rect(screen, WHITE, button_rect, 2, border_radius=8)
+        # Render label via font_manager for Vietnamese support
+        try:
+            text_surface = self.font_manager.render_text(label, 20, WHITE)
+            if text_surface:
+                text_rect = text_surface.get_rect(center=button_rect.center)
+                screen.blit(text_surface, text_rect)
+                return button_rect
+        except Exception:
+            pass
+
+        # Fallback
+        fallback_font = pygame.font.Font(None, 20)
+        text_surface = fallback_font.render(label, True, WHITE)
+        text_rect = text_surface.get_rect(center=button_rect.center)
+        screen.blit(text_surface, text_rect)
+        return button_rect
+
+    def handle_menu_button_event(self, event, button_rect):
+        """Xử lý sự kiện cho nút menu khi vẽ trong trang chơi"""
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and button_rect and button_rect.collidepoint(event.pos):
+            return "BACK_TO_MENU"
+        return None
