@@ -32,23 +32,6 @@ font_large = pygame.font.Font(None, 74)
 font_small = pygame.font.Font(None, 28)
 clock = pygame.time.Clock()
 
-# Khởi tạo game manager
-game_manager = GameManager(WINDOW_WIDTH, WINDOW_HEIGHT)
-
-# Khởi tạo cosmic selector
-cosmic_selector = CosmicAlgorithmSelector(WINDOW_WIDTH, WINDOW_HEIGHT)
-show_algorithm_selector = False
-
-# --- KHAI BÁO BIẾN TRẠNG THÁI ---
-# Speed control system - x1, x5, x10, x20
-speed_multipliers = [1, 5, 10, 20]
-current_speed_index = 0  # Bắt đầu với x1
-SOLVER_MOVE_INTERVAL = BASE_SOLVER_INTERVAL // speed_multipliers[current_speed_index]
-
-all_maps = {"1": LEVEL_ONE, "2": LEVEL_TWO, 
-            "3": LEVEL_THREE, "4": LEVEL_FOUR,
-            "5": LEVEL_FIVE, "6": LEVEL_SIX,
-            "7": LEVEL_SEVEN}
 map_names = list(all_maps.keys())
 current_map_index = 0
 current_maze = all_maps[map_names[current_map_index]]
