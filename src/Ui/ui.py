@@ -318,14 +318,23 @@ def flat_to_matrix(flat_list, rows, cols):
     return matrix
 
 def draw_matrix(screen, matrix, x, y, cell_width, cell_height, fonts, colors, tiles):
-    """Vẽ matrix mini maze"""
+    """Vẽ matrix mini maze với tường giống game thật"""
     for i, row in enumerate(matrix):
         for j, cell in enumerate(row):
             rect = pygame.Rect(x + j * cell_width, y + i * cell_height, cell_width, cell_height)
-            if cell == 1:  # Wall
-                pygame.draw.rect(screen, colors.get('wall', (100, 100, 100)), rect)
-            else:  # Path
-                pygame.draw.rect(screen, colors.get('path', (50, 50, 50)), rect)
+            if cell == 1:  # Wall - sử dụng texture giống game
+                # Tạo wall tile với kích thước mini
+                wall_tile = asteroid_wall_3d_renderer.get_wall_tile(i, j, max(cell_width, cell_height))
+                # Scale về kích thước mini nếu cần
+                if cell_width != max(cell_width, cell_height) or cell_height != max(cell_width, cell_height):
+                    wall_tile = pygame.transform.scale(wall_tile, (cell_width, cell_height))
+                screen.blit(wall_tile, (rect.x, rect.y))
+            else:  # Path - màu xanh giống game thật
+                # Vẽ nền xanh giống như trong game chính
+                pygame.draw.rect(screen, COLOR_BACKGROUND, rect)  # Nền xanh đậm
+                # Thêm viền để tạo hiệu ứng lưới
+                if cell_width > 2 and cell_height > 2:
+                    pygame.draw.rect(screen, (40, 60, 80), rect, 1)  # Viền xanh nhạt hơn
 
 def draw_history_panel(screen, history_groups, scroll_offset, panel_rect, close_rect, fonts, colors, tiles):
     """Vẽ panel lịch sử theo nhóm, with ms time and layout.
@@ -349,11 +358,11 @@ def draw_history_panel(screen, history_groups, scroll_offset, panel_rect, close_
     # Định nghĩa vị trí X cho từng cột
     table_x_start = panel_rect.x + 160
     col_x = {
-        "algo": table_x_start,
-        "steps": table_x_start + 130,
-        "visited": table_x_start + 210,
-        "generated": table_x_start + 310,
-        "time": table_x_start + 430,
+        "algo": table_x_start + 70,
+        "steps": table_x_start + 200,
+        "visited": table_x_start + 280,
+        "generated": table_x_start + 380,
+        "time": table_x_start + 500,
     }
 
     # Vẽ dòng tiêu đề của bảng
@@ -383,7 +392,7 @@ def draw_history_panel(screen, history_groups, scroll_offset, panel_rect, close_
             if y_cursor + group_height > content_rect.top and y_cursor < content_rect.bottom:
                 # Vẽ puzzle mini đại diện cho nhóm
                 rows, cols = group_data.get('rows', MAZE_ROWS), group_data.get('cols', MAZE_COLS)
-                matrix = flat_to_matrix(list(state_tuple), rows, cols) if isinstance(state_tuple, (list, tuple)) else flat_to_matrix(list(state_tuple), rows, cols)
+                maze_structure = group_data.get('maze', [])  # Lấy maze structure
                 puzzle_w, puzzle_h = 100, 100
                 puzzle_x, puzzle_y = content_rect.left + 10, y_cursor + 5
 
@@ -391,8 +400,23 @@ def draw_history_panel(screen, history_groups, scroll_offset, panel_rect, close_
                 padding = 2
                 grid_w, grid_h = puzzle_w - padding*2, puzzle_h - padding*2
                 cell_width, cell_height = max(8, grid_w // cols), max(8, grid_h // rows)
-                pygame.draw.rect(screen, colors['box'], frame_rect, border_radius=8)
-                draw_matrix(screen, matrix, puzzle_x + padding, puzzle_y + padding, cell_width, cell_height, fonts, colors, tiles)
+                
+                # Không vẽ nền mini map nữa - để mini map hiển thị trực tiếp trên nền panel
+                
+                # Sử dụng maze structure thay vì state tuple
+                if maze_structure:
+                    draw_matrix(screen, maze_structure, puzzle_x + padding, puzzle_y + padding, cell_width, cell_height, fonts, colors, tiles)
+                    
+                    # Tính kích thước thực tế của mini map dựa trên matrix đã vẽ
+                    actual_rows = len(maze_structure)
+                    actual_cols = len(maze_structure[0]) if maze_structure else 0
+                    actual_map_width = actual_cols * cell_width
+                    actual_map_height = actual_rows * cell_height
+                    
+                    # Vẽ khung bao lên trên mini map (không bo tròn)
+                    map_rect = pygame.Rect(puzzle_x + padding, puzzle_y + padding, 
+                                         actual_map_width, actual_map_height)
+                    pygame.draw.rect(screen, (120, 150, 200), map_rect, 2)  # Viền xanh sáng, độ dày 2
 
                 # Vẽ bảng kết quả cho nhóm
                 for i, result in enumerate(group_data['results']):

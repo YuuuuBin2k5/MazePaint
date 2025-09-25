@@ -2,6 +2,7 @@
 WINDOW_WIDTH = 1100
 WINDOW_HEIGHT = 640
 WINDOW_TITLE = "Maze Paint"
+ICON_PATH = "./asset/image/icon.png"
 FPS = 60
 
 # -- CÀI ĐẶT MÊ CUNG VÀ BOARD CỐ ĐỊNH --
@@ -43,11 +44,29 @@ PATH_GLOW = (100, 200, 255)        # Viền xanh sáng cho đường đã đi
 PATH_OVERLAY = (30, 100, 200, 180)  # Overlay xanh trong suốt
 UNVISITED_OVERLAY = (0, 0, 0, 100)  # Overlay đen mờ cho ô chưa đi
 PLAYER_GLOW = (255, 150, 0, 60)     # Hiệu ứng glow cam cho player
+
+# -- CÀI ĐẶT ÂM THANH --
+SOUND_ENABLED = True
+MASTER_VOLUME = 0.7  # Âm lượng chính (0.0 - 1.0)
+SFX_VOLUME = 0.5     # Âm lượng hiệu ứng âm thanh
+MUSIC_VOLUME = 0.3   # Âm lượng nhạc nền
+
+# Đường dẫn âm thanh
+SOUND_PATH = "./asset/sound/"
+SOUND_MOVE = SOUND_PATH + "move.mp3"          # Âm thanh di chuyển
+SOUND_WIN = SOUND_PATH + "victory.mp3"        # Âm thanh chiến thắng
+SOUND_BUTTON = SOUND_PATH + "button.mp3"      # Âm thanh nhấn nút
+SOUND_ALGORITHM_START = SOUND_PATH + "algorithm_start.mp3"  # Âm thanh bắt đầu thuật toán
+SOUND_ALGORITHM_STEP = SOUND_PATH + "step.mp3"              # Âm thanh mỗi bước thuật toán
+BACKGROUND_MUSIC = SOUND_PATH + "background.mp3"            # Nhạc nền
+VICTORY_MUSIC = SOUND_PATH + "victory.mp3"            # Nhạc chiến thắng (dài)
+VICTORY_PHASE3_SOUND = SOUND_PATH + "victory2.mp3"  # Âm thanh đặc biệt phase 3
+
 # -- CÀI ĐẶT NGƯỜI CHƠI --
 PLAYER_RADIUS = TILE_SIZE // 3
 
 # -- CÀI ĐẶT ANIMATION VÀ MOVEMENT --
-SMOOTH_MOVE_SPEED = 0.6    # Tốc độ chuyển động mượt mà (tăng để nhanh hơn khi auto solve)
+SMOOTH_MOVE_SPEED = 0.8    # Tốc độ chuyển động mượt mà (tăng để nhanh hơn khi auto solve)
 SOLVER_MOVE_INTERVAL = 800  # Tốc độ mặc định (1x) - giống như manual với đầy đủ animation
 BASE_SOLVER_INTERVAL = 800  # Tốc độ cơ sở để tính toán multiple
 PLAYER_MOVE_INTERVAL = 180  # Thời gian cooldown cho player movement
@@ -91,4 +110,16 @@ BUTTON_SHADOW_ALPHA = 80  # Độ mờ shadow button (0-255)
 BUTTON_BORDER_RADIUS = 10  # Bo góc button
 HISTORY_Y_OFFSET = 25  # Khoảng cách dòng trong history
 PLANET_SPAWN_DELAY = 60  # Delay spawn hành tinh (frames)
+
+# -- MENU SETTINGS --
+SELECTED_SPACESHIP = 0  # Spaceship được chọn (0-8)
+
+def set_selected_spaceship(ship_id):
+    """Set spaceship đã chọn"""
+    global SELECTED_SPACESHIP
+    SELECTED_SPACESHIP = ship_id
+
+def get_selected_spaceship():
+    """Get spaceship đã chọn"""
+    return SELECTED_SPACESHIP
 
