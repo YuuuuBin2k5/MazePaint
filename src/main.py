@@ -32,6 +32,23 @@ font_large = pygame.font.Font(None, 74)
 font_small = pygame.font.Font(None, 28)
 clock = pygame.time.Clock()
 
+# Khởi tạo game manager
+game_manager = GameManager(WINDOW_WIDTH, WINDOW_HEIGHT)
+
+# Khởi tạo cosmic selector
+cosmic_selector = CosmicAlgorithmSelector(WINDOW_WIDTH, WINDOW_HEIGHT)
+show_algorithm_selector = False
+
+# --- KHAI BÁO BIẾN TRẠNG THÁI ---
+# Speed control system - x1, x5, x10, x20
+speed_multipliers = [1, 5, 10, 20]
+current_speed_index = 0  # Bắt đầu với x1
+SOLVER_MOVE_INTERVAL = BASE_SOLVER_INTERVAL // speed_multipliers[current_speed_index]
+
+all_maps = {"1": LEVEL_ONE, "2": LEVEL_TWO, 
+            "3": LEVEL_THREE, "4": LEVEL_FOUR,
+            "5": LEVEL_FIVE, "6": LEVEL_SIX,
+            "7": LEVEL_SEVEN}
 map_names = list(all_maps.keys())
 current_map_index = 0
 current_maze = all_maps[map_names[current_map_index]]
@@ -61,6 +78,15 @@ is_moving_smooth = False    # Có đang di chuyển mượt không
 movement_progress = 0.0     # Tiến độ di chuyển (0.0 -> 1.0)
 current_auto_direction = None  # Hướng di chuyển khi auto solve
 last_auto_direction = None  # Lưu direction cuối cùng để dùng khi smooth movement
+
+# BIẾN MỚI CHO TRỰC QUAN HÓA (PHƯƠNG PHÁP LOG)
+visualization_log = None  # Sẽ lưu trữ danh sách ui_log từ BFS
+log_index = 0             # Vị trí (frame) hiện tại đang phát trong log
+is_playing_log = False    # Cờ báo hiệu game đang trong chế độ phát lại log
+
+# Các biến để lưu trạng thái hình ảnh từ log
+visualize_current_pos = None # Vị trí của trạng thái đang xét
+visualize_options = []       # Danh sách các vị trí của các trạng thái kế tiếp
 
 # Smart Input Queue System - now imported from movement_queue.py
 # from movement_queue import movement_queue, add_movement_to_queue, get_next_movement, clear_movement_queue
@@ -139,7 +165,7 @@ def solve_maze():
             result = ucs_solve(current_maze, player_pos)
         elif algorithm == "Greedy":
             result = greedy_solve(current_maze, player_pos)
-        elif algorithm == "A*":
+        elif algorithm == "Astar":
             result = astar_solve(current_maze, player_pos)
         else:
             solving_path = None
@@ -163,8 +189,6 @@ def solve_maze():
         solving_path = None
         
     sound_manager.switch_to_background_music()
-
-# Thêm log để kiểm tra dữ liệu từ thuật toán và history_groups
 
 def add_to_history(algorithm_name, result, execution_time):
     """Thêm kết quả giải maze vào history"""
@@ -541,7 +565,7 @@ while running:
             if not solving_path:
                 current_auto_direction = None
                 last_auto_direction = None
-
+                
     # Tự động giải - chỉ khi không đang smooth movement
     if solving_path and not is_moving_smooth:
         time_since_last_move += dt
@@ -611,7 +635,6 @@ while running:
         # Sử dụng direction phù hợp: ưu tiên current, fallback sang last khi đang auto solve hoặc smooth movement
         auto_dir_to_use = current_auto_direction if current_auto_direction else (last_auto_direction if (solving_path or is_moving_smooth) else None)
         draw_board(screen, current_maze, painted_tiles, player_visual_pos, BOARD_X, BOARD_Y, keys, player_pos, auto_dir_to_use)
-
         # Draw star particles on top of everything
         draw_star_particles(screen)
 

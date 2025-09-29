@@ -11,16 +11,17 @@ def bfs_solve(maze, start_pos):
     start_state = (tuple(start_pos), initial_painted)
 
     queue = collections.deque([start_state])
-    
-    # Visited lưu lại dấu vết: {trạng_thái_con: (trạng_thái_cha, hướng_đi)}
     visited = {start_state: (None, None)}
     num_of_states = 0
     visited_count = 0
     start_time = time.time()
+
+    explored = dict()   # mỗi phần tử: {stt, [những ô có thể tô]}
+    stt = 0
     while queue:
         current_pos, painted_tiles = queue.popleft()
         current_state = (current_pos, painted_tiles)
-        visited_count+=1
+        visited_count += 1
 
         if len(painted_tiles) == total_path_tiles:
             path = reconstruct_path(visited, start_state, current_state)
@@ -29,22 +30,32 @@ def bfs_solve(maze, start_pos):
                 "steps": len(path),
                 "visited": visited_count,
                 "states": num_of_states,
-                "time": time.time() - start_time
+                "time": time.time() - start_time,
+                "explored": explored
             }
 
         shuffled_moves = list(MOVES.keys())
         random.shuffle(shuffled_moves)
+
+        possible_paint = set()  # các ô mà cur có thể tô
+
         for move in shuffled_moves:
-            next_pos, newly_painted = simulate_move(current_pos, MAZE_ROWS, MAZE_COLS, move, maze)
-            
+            next_pos, newly_painted = simulate_move(
+                current_pos, MAZE_ROWS, MAZE_COLS, move, maze
+            )
+
             if next_pos == current_pos:
                 continue
-            
+
             new_painted_set = painted_tiles.union(newly_painted)
             new_state = (next_pos, new_painted_set)
-            
+            possible_paint.update(new_painted_set)
+
             if new_state not in visited:
-                num_of_states+=1
+                num_of_states += 1
                 visited[new_state] = (current_state, move)
                 queue.append(new_state)
+
+        explored[stt] = possible_paint
+        stt+=1
     return None

@@ -166,7 +166,6 @@ def draw_button_pressed(screen, font, rect, color, text=None, button_style="defa
 
 def draw_board(screen, maze, painted_tiles, player_pos, board_x, board_y, keys=None, logical_pos=None, auto_direction=None):
    
-    
     rows = len(maze)
     cols = len(maze[0])
     
