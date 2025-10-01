@@ -65,55 +65,8 @@ def heuristic(painted_tiles, total_path_tiles):
     # return total_path_tiles - len(painted_tiles)
     # return 1 if len(painted_tiles) < total_path_tiles else 0
 
-def find_connected_components(maze):
-    """
-    Count 4-connected components of PATH tiles in the maze.
-    Returns integer number of components (0 if no PATH tiles).
-    """
-    nodes_to_visit = set()
-    rows = len(maze)
-    cols = len(maze[0]) if rows > 0 else 0
 
-    for r in range(rows):
-        for c in range(cols):
-            if maze[r][c] == PATH:
-                nodes_to_visit.add((r, c))
-
-    component_count = 0
-    dq = collections.deque()
-
-    while nodes_to_visit:
-        component_count += 1
-        start_node = nodes_to_visit.pop()
-        dq.append(start_node)
-
-        while dq:
-            r, c = dq.popleft()
-            for dr, dc in MOVES.values():
-                nr, nc = r + dr, c + dc
-                neighbor = (nr, nc)
-                if neighbor in nodes_to_visit:
-                    nodes_to_visit.remove(neighbor)
-                    dq.append(neighbor)
-
-    return component_count
-
-def is_solvable_by_connectivity(maze, start_pos=(1,1)):
-    """
-    Quick check: returns True if all PATH tiles are in the same connected component
-    and the start_pos is a PATH tile. This is a fast necessary condition for solvable.
-    (Does not fully guarantee sliding-solver existence but is a strong quick check.)
-    """
-    rows = len(maze)
-    cols = len(maze[0]) if rows > 0 else 0
-    sr, sc = start_pos
-    if not (0 <= sr < rows and 0 <= sc < cols):
-        return False
-    if maze[sr][sc] != PATH:
-        return False
-    comps = find_connected_components(maze)
-    return comps == 1
-
+# Tìm các ô có thể tiếp cận bằng cách trượt
 def find_reachable_by_slides(maze, start_pos):
     """
     Trả về tập các ô PATH có thể được "đi qua" hoặc dừng tại khi di chuyển theo luật sliding

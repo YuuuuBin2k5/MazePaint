@@ -747,10 +747,10 @@ def render_text_outline(target_surf, text, font, pos, fg,
     else:
         target_surf.blit(main_s, (x, y))
 
-def render_edit_check_panel(screen, solvable, comps, player_pos,
+def render_edit_check_panel(screen, solvable,
                             player_rect, speed_display_rect,
                             board_y, tile_size, maze_rows, window_width,
-                            font_vn, font_mono):
+                            font_vn):
     """
     Vẽ panel 'Kiểm tra map: PASS/FAIL' theo phong cách 3D máy móc.
     Không thay đổi state, chỉ render.

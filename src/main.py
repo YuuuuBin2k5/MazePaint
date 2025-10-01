@@ -13,7 +13,7 @@ from Algorithm.DFS import dfs_solve
 from Algorithm.UCS import ucs_solve
 from Algorithm.Greedy import greedy_solve
 from Algorithm.Astar import astar_solve
-from Algorithm.func_algorithm import find_connected_components, is_solvable_by_sliding
+from Algorithm.func_algorithm import is_solvable_by_sliding
 from maps import *
 
 # Import cosmic selector
@@ -805,18 +805,11 @@ while running:
         except Exception:
             solvable = False
 
-        comps = 0
-        if not solvable:
-            try:
-                comps = find_connected_components(current_maze)
-            except Exception:
-                comps = 0
-
         # gọi hàm UI đã tách
-        render_edit_check_panel(screen, solvable, comps, player_pos,
+        render_edit_check_panel(screen, solvable,
                             player_rect, speed_display_rect,
                             BOARD_Y, TILE_SIZE, maze_rows, WINDOW_WIDTH,
-                            font_vn, font_mono)
+                            font_vn)
 
         
     pygame.display.flip()
