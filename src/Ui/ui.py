@@ -747,120 +747,87 @@ def render_text_outline(target_surf, text, font, pos, fg,
     else:
         target_surf.blit(main_s, (x, y))
 
-def render_edit_check_panel(screen, solvable,
+# Sửa đổi: Thêm num_components vào danh sách tham số
+def render_edit_check_panel(screen, num_components,
                             player_rect, speed_display_rect,
                             board_y, tile_size, maze_rows, window_width,
-                            font_vn):
+                            font_edit_panel):
     """
-    Vẽ panel 'Kiểm tra map: PASS/FAIL' theo phong cách 3D máy móc.
-    Không thay đổi state, chỉ render.
+    Vẽ panel hiển thị số thành phần liên thông với giao diện được cải tiến:
+    gọn gàng, tinh tế và hiện đại hơn.
     """
-    # Layout ngang bằng nút Player nếu có
-    base_btn_w = player_rect.width if player_rect else 360
-    bar_w = int(base_btn_w)
-    bar_h = 72
+    # --- THIẾT KẾ MỚI: Gọn gàng và tinh tế hơn ---
+    bar_w = 250  # Giảm chiều rộng cố định cho gọn
+    bar_h = 50   # Giảm chiều cao
     gap = 12
 
+    # Vẫn giữ logic canh giữa và tránh bị che khuất
     ref_cx = speed_display_rect.centerx if speed_display_rect else window_width // 2
     bar_x = int(ref_cx - bar_w // 2)
     bar_x = max(12, min(bar_x, window_width - bar_w - 12))
     bar_y = (speed_display_rect.bottom + gap) if speed_display_rect else 20
-
     board_bottom = board_y + maze_rows * tile_size
     if bar_y + bar_h > board_bottom - 8:
         bar_y = max(8, board_bottom - bar_h - 8)
 
-    # Shadow nền
-    shadow = pygame.Surface((bar_w + 10, bar_h + 10), pygame.SRCALPHA)
-    pygame.draw.rect(shadow, (0, 0, 0, 180), shadow.get_rect(), border_radius=14)
-    screen.blit(shadow, (bar_x + 6, bar_y + 6))
+    # --- NỀN TỐI GIẢN ---
+    # 1. Shadow nhẹ để tạo chiều sâu
+    shadow_rect = pygame.Rect(bar_x + 4, bar_y + 4, bar_w, bar_h)
+    pygame.draw.rect(screen, (0, 0, 0, 150), shadow_rect, border_radius=10)
 
-    # Extruded layers -> cảm giác 3D sâu
-    for d in range(5, 0, -1):
-        layer = pygame.Surface((bar_w, bar_h), pygame.SRCALPHA)
-        shade = 6 + d * 8
-        layer.fill((shade, shade + 6, shade + 14, 255))
-        pygame.draw.rect(layer, (shade + 34, shade + 56, shade + 74, 18),
-                         layer.get_rect(), 1, border_radius=12)
-        screen.blit(layer, (bar_x, bar_y + d))
+    # 2. Nền chính: màu xám kim loại tối, không còn màu xanh dương
+    top_surf = pygame.Surface((bar_w, bar_h), pygame.SRCALPHA)
+    top_rect = top_surf.get_rect()
 
-    # Top face (metallic + deep-blue neon)
-    top = pygame.Surface((bar_w, bar_h), pygame.SRCALPHA)
-    top_rect = top.get_rect()
+    # Gradient xám tối tinh tế
     for y in range(bar_h):
         t = y / max(1, bar_h - 1)
-        r = int(4 * (1 - t) + 8 * t)
-        g = int(10 * (1 - t) + 80 * t)
-        b = int(20 * (1 - t) + 120 * t)
-        pygame.draw.line(top, (r, g, b, 240), (0, y), (bar_w, y))
-    # specular strip (muted)
-    spec_h = bar_h // 3
-    spec = pygame.Surface((bar_w - 20, spec_h), pygame.SRCALPHA)
-    for i in range(spec_h):
-        a = int(120 * (1 - i / max(1, spec_h - 1)) ** 2)
-        pygame.draw.line(spec, (40, 120, 160, a), (0, i), (spec.get_width(), i))
-    top.blit(spec, (10, 6), special_flags=pygame.BLEND_PREMULTIPLIED)
+        # Chuyển từ xanh dương -> xám (25, 30, 35) tới (55, 60, 65)
+        color_val = int(25 * (1 - t) + 55 * t)
+        pygame.draw.line(top_surf, (color_val, color_val + 5, color_val + 10), (0, y), (bar_w, y))
 
-    pygame.draw.rect(top, (80, 160, 190, 40), top_rect, 1, border_radius=12)
-    pygame.draw.rect(top, (6, 18, 34, 120), top_rect.inflate(-6, -6), 1, border_radius=10)
+    # 3. Viền mỏng để tạo điểm nhấn
+    pygame.draw.rect(top_surf, (80, 85, 90, 100), top_rect, 1, border_radius=10)
+    pygame.draw.rect(top_surf, (0, 0, 0, 200), top_rect.inflate(-2, -2), 1, border_radius=9)
+    screen.blit(top_surf, (bar_x, bar_y))
+    
+    # --- VĂN BẢN ĐƯỢC CĂN CHỈNH LẠI ---
+    if num_components >= 0:
+        status_text = f"Số thành phần liên thông: {num_components}"
+    else:
+        status_text = "Đang kiểm tra..."
 
-    screen.blit(top, (bar_x, bar_y))
+    # Màu chữ trắng ngà để dịu mắt
+    main_col = (210, 220, 230)
+    outline_col = (10, 12, 15)
+    
+    # Render chữ với viền để dễ đọc
+    text_surf = render_text_outline_new(status_text, font_edit_panel, main_col, outline_col, 1)
+    text_rect = text_surf.get_rect()
+    
+    # Canh lề chính xác vào giữa panel
+    text_rect.center = (bar_x + bar_w // 2, bar_y + bar_h // 2)
+    
+    screen.blit(text_surf, text_rect)
 
-    # Neon outer glow (subtle)
-    glow = pygame.Surface((bar_w + 28, bar_h + 28), pygame.SRCALPHA)
-    for i, a in enumerate((26, 14, 8)):
-        c = (12, 100, 170, a)
-        pygame.draw.rect(glow, c, pygame.Rect(8 - i, 8 - i, bar_w + 2 * i + 12, bar_h + 2 * i + 12),
-                         border_radius=14 - i)
-    screen.blit(glow, (bar_x - 12, bar_y - 12), special_flags=pygame.BLEND_ADD)
+# --- HÀM TRỢ GIÚP MỚI ---
+def render_text_outline_new(text, font, text_color, outline_color, width):
+    """
+    Render một Surface chứa chữ có viền.
+    """
+    base_text = font.render(text, True, text_color)
+    outline_text = font.render(text, True, outline_color)
+    
+    # Tạo một surface lớn hơn để chứa cả chữ và viền
+    w, h = base_text.get_size()
+    text_surf = pygame.Surface((w + width * 2, h + width * 2), pygame.SRCALPHA)
+    
+    # Vẽ viền ở các hướng
+    for dx in range(-width, width + 1):
+        for dy in range(-width, width + 1):
+            if dx != 0 or dy != 0:
+                text_surf.blit(outline_text, (width + dx, width + dy))
 
-    # Indicator: vòng tròn 3D, segmented + inner core
-    ring_size = 35
-    ring_x = bar_x + 26 - 20
-    ring_y = bar_y + (bar_h - ring_size) // 2
-    ring_surf = pygame.Surface((ring_size, ring_size), pygame.SRCALPHA)
-    cx, cy = ring_size // 2, ring_size // 2
-    outer_r = ring_size // 2 - 2
-    inner_r = outer_r - 10
-
-    pygame.draw.circle(ring_surf, (18, 44, 60), (cx, cy), outer_r + 2)
-    pygame.draw.circle(ring_surf, (28, 86, 110), (cx, cy), outer_r, 6)
-
-    seg_count = 10
-    for i in range(seg_count):
-        angle = i * (360 / seg_count)
-        v = pygame.math.Vector2(1, 0).rotate(angle)
-        tx = cx + int(v.x * (outer_r - 6))
-        ty = cy + int(v.y * (outer_r - 6))
-        color = (18, 140, 190) if solvable else (180, 70, 70)
-        pygame.draw.circle(ring_surf, color, (tx, ty), 3)
-
-    core_surf = pygame.Surface((inner_r * 2, inner_r * 2), pygame.SRCALPHA)
-    for i in range(inner_r, 0, -1):
-        a = int(120 * (1 - i / inner_r))
-        col = (22, 150, 130) if solvable else (190, 80, 80)
-        pygame.draw.circle(core_surf, (*col, a), (inner_r, inner_r), i)
-    pygame.draw.circle(core_surf, (6, 18, 24, 200), (inner_r, inner_r), max(2, inner_r // 3))
-
-    ring_surf.blit(core_surf, (cx - inner_r, cy - inner_r), special_flags=pygame.BLEND_PREMULTIPLIED)
-    pygame.draw.circle(ring_surf, (8, 28, 40, 180), (cx, cy), inner_r - 1, 1)
-    screen.blit(ring_surf, (ring_x, ring_y), special_flags=pygame.BLEND_ADD)
-
-    # Text: nổi bật, bevel + neon glow (không dùng trắng nguyên)
-    status_text = "Kiểm tra map: PASS" if solvable else "Kiểm tra map: FAIL"
-    # main color: tăng tương phản, không dùng trắng nguyên
-    main_col = (40, 230, 190) if solvable else (230, 120, 120)
-    outline_col = (6, 14, 22)
-    txt_x = ring_x + ring_size
-    txt_y = bar_y + (bar_h - font_vn.get_height()) // 2
-
-    # Render outlined text để tối ưu readability
-    render_text_outline(screen, status_text, font_vn, (txt_x, txt_y), main_col,
-                        outline_col=outline_col, outline_width=2, blend_add=False)
-    # nhẹ nhàng thêm một lớp neon mờ (không làm mờ chữ)
-    try:
-        neon = font_vn.render(status_text, True, (18, 110, 170))
-        neon.set_alpha(28)
-        screen.blit(neon, (txt_x + 1, txt_y + 1), special_flags=pygame.BLEND_ADD)
-    except Exception:
-        pass
+    # Vẽ chữ chính ở giữa
+    text_surf.blit(base_text, (width, width))
+    return text_surf

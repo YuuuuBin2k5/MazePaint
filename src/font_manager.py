@@ -59,7 +59,8 @@ def get_font(kind="vn", size=18, bold=False):
 font_vn = get_font("vn", 22, bold=True)
 font_mono = get_font("mono", 16, bold=False)
 font_large = get_font("vn", 48, bold=True)
-font_small = get_font("vn", 20, bold=False)
+font_small = pygame.font.Font(None, 28)
+font_edit_panel = get_font("vn", 16, bold=True)
 
 class FontManager:
     def __init__(self):

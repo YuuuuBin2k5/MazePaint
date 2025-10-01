@@ -25,6 +25,7 @@ def bfs_solve(maze, start_pos):
 
         if len(painted_tiles) == total_path_tiles:
             path = reconstruct_path(visited, start_state, current_state)
+            print(explored)
             return {
                 "path": path,
                 "steps": len(path),

@@ -51,81 +51,116 @@ def simulate_move(start_pos, MAZE_ROWS, MAZE_COLS, direction, maze):
     #vị trí sau khi di chuyển và những ô đã tô được    
     return (row, col), path_painted
 
-def heuristic(painted_tiles, total_path_tiles):
+def heuristic_is_not_done(painted_tiles, total_path_tiles):
+    return 1 if len(painted_tiles) < total_path_tiles else 0
+
+def heuristic_unpainted_count(painted_tiles, total_path_tiles):
+    return total_path_tiles - len(painted_tiles)
+
+def heuristic_optimistic_moves(painted_tiles, total_path_tiles):
     unpainted = total_path_tiles - len(painted_tiles)
     if unpainted == 0:
         return 0
     
     # Số ô tối đa có thể tô trong 1 nước đi là chiều dài hoặc chiều rộng của mê cung
     max_paint_per_move = max(MAZE_ROWS, MAZE_COLS)
-    
-    # h(n) = ceil(số ô còn lại / số ô tối đa có thể tô trong 1 lần)
-    # Luôn đảm bảo không ước tính quá cao
     return math.ceil(unpainted / max_paint_per_move)
-    # return total_path_tiles - len(painted_tiles)
-    # return 1 if len(painted_tiles) < total_path_tiles else 0
 
+def _count_unpainted_components_helper(painted_tiles, maze):
+    nodes_to_visit = set()
+    for r in range(MAZE_ROWS):
+        for c in range(MAZE_COLS):
+            # 0 là giá trị của đường đi (PATH)
+            if maze[r][c] == 0 and (r, c) not in painted_tiles:
+                nodes_to_visit.add((r, c))
+
+    if not nodes_to_visit:
+        return 0
+
+    component_count = 0
+    moves_4_dir = [(-1, 0), (1, 0), (0, -1), (0, 1)] 
+    
+    while nodes_to_visit:
+        component_count += 1
+        start_node = nodes_to_visit.pop()
+        dq = collections.deque([start_node])
+        
+        while dq:
+            r, c = dq.popleft()
+            for dr, dc in moves_4_dir:
+                neighbor = (r + dr, c + dc)
+                if neighbor in nodes_to_visit:
+                    nodes_to_visit.remove(neighbor)
+                    dq.append(neighbor)
+    
+    return component_count
+
+def heuristic_unpainted_components(painted_tiles, total_path_tiles, maze):
+    unpainted_count = total_path_tiles - len(painted_tiles)
+    if unpainted_count == 0:
+        return 0
+
+    return _count_unpainted_components_helper(painted_tiles, maze)  # Bỏ MAZE_ROWS, MAZE_COLS
+
+# ...existing code...
+def heuristic(painted_tiles, total_path_tiles):
+    """
+    Hàm heuristic gốc - trả về số ô chưa tô (admissible).
+    """
+    return total_path_tiles - len(painted_tiles)
 
 # Tìm các ô có thể tiếp cận bằng cách trượt
-def find_reachable_by_slides(maze, start_pos):
-    """
-    Trả về tập các ô PATH có thể được "đi qua" hoặc dừng tại khi di chuyển theo luật sliding
-    (player trượt tới khi gặp tường). Bao gồm cả ô start.
-    """
-    rows = len(maze)
-    cols = len(maze[0]) if rows > 0 else 0
-    sr, sc = start_pos
-    if not (0 <= sr < rows and 0 <= sc < cols):
-        return set()
-    if maze[sr][sc] != PATH:
-        return set()
+def find_connected_components(maze, start_pos):
+    nodes_to_visit = set()
+    for r in range(MAZE_ROWS):
+        for c in range(MAZE_COLS):
+            if maze[r][c] == 0:
+                nodes_to_visit.add((r, c))
 
-    reachable = set()
-    stop_positions = set()
-    dq = collections.deque()
+    if not nodes_to_visit:
+        return 0
 
-    # start is both reachable and a stop position (you can start sliding from here)
-    reachable.add((sr, sc))
-    stop_positions.add((sr, sc))
-    dq.append((sr, sc))
+    component_count = 0
 
-    while dq:
-        r, c = dq.popleft()
-        # for each slide direction, simulate full slide
-        for dr, dc in MOVES.values():
-            nr, nc = r, c
-            slid = []
-            # move while next cell is PATH
-            while 0 <= nr + dr < rows and 0 <= nc + dc < cols and maze[nr + dr][nc + dc] == PATH:
-                nr += dr
-                nc += dc
-                slid.append((nr, nc))
-            if not slid:
-                continue
-            # all tiles passed during slide are reachable (paintable)
-            for t in slid:
-                if t not in reachable:
-                    reachable.add(t)
-            stop = (nr, nc)
-            # also consider the stop position as a node to expand further
-            if stop not in stop_positions:
-                stop_positions.add(stop)
-                dq.append(stop)
-    # include stop positions too (they are reachable by being at those coordinates)
-    reachable |= stop_positions
-    return reachable
+    if start_pos in nodes_to_visit:
+        component_count = 1
+        dq = collections.deque([start_pos])
+        nodes_to_visit.remove(start_pos) # Đánh dấu đã thăm
 
-def is_solvable_by_sliding(maze, start_pos=(1,1)):
+        while dq:
+            current_pos = dq.popleft()
+            for direction in MOVES:
+                reachable_node, _ = simulate_move(current_pos, MAZE_ROWS, MAZE_COLS, direction, maze)
+                if reachable_node in nodes_to_visit:
+                    nodes_to_visit.remove(reachable_node)
+                    dq.append(reachable_node)
+
+    while nodes_to_visit:
+        component_count += 1
+        new_start_node = nodes_to_visit.pop()
+        dq = collections.deque([new_start_node])
+        while dq:
+            current_pos = dq.popleft()
+            for direction in MOVES:
+                reachable_node, _ = simulate_move(current_pos, MAZE_ROWS, MAZE_COLS, direction, maze)
+                if reachable_node in nodes_to_visit:
+                    nodes_to_visit.remove(reachable_node)
+                    dq.append(reachable_node)
+    
+    return component_count
+
+def get_heuristic_function(heuristic_type, maze):
     """
-    Kiểm tra nhanh: trả về True nếu mọi ô PATH trong maze nằm trong tập reachable
-    theo cơ chế slide-from-start. (Phù hợp với cơ chế trò chơi của bạn.)
+    Trả về hàm heuristic tương ứng với loại được chỉ định.
     """
-    rows = len(maze)
-    cols = len(maze[0]) if rows > 0 else 0
-    # collect all PATH tiles
-    all_path = {(r,c) for r in range(rows) for c in range(cols) if maze[r][c] == PATH}
-    if not all_path:
-        return False
-    reachable = find_reachable_by_slides(maze, start_pos)
-    # tất cả ô PATH phải nằm trong reachable để có thể tô hết
-    return all_path.issubset(reachable)
+    if heuristic_type == "not_done":
+        return lambda painted, total: heuristic_is_not_done(painted, total)
+    elif heuristic_type == "unpainted_count":
+        return lambda painted, total: heuristic_unpainted_count(painted, total)
+    elif heuristic_type == "optimistic_moves":
+        return lambda painted, total: heuristic_optimistic_moves(painted, total)
+    elif heuristic_type == "unpainted_components":
+        return lambda painted, total: heuristic_unpainted_components(painted, total, maze)
+    else:
+        # Default fallback to original heuristic
+        return lambda painted, total: heuristic(painted, total)

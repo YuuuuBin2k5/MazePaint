@@ -8,6 +8,8 @@ import math
 import random
 from config import *
 from font_manager import get_font_manager
+from .ui import draw_button  # Import hàm draw_button
+from font_manager import font_small
 
 class MainMenu:
     def __init__(self, width, height):
@@ -276,32 +278,17 @@ class MainMenu:
             screen.blit(hint_surface, hint_rect)
         
     def draw_menu_button(self, screen, label="Menu"):
-        """Vẽ nút menu (dùng trong trang chơi). Trả về rect của nút."""
-        # Place button at top-right area of game screen for consistent UI
-        # Use a small margin from the window border so it doesn't overlap other UI
+        """Vẽ nút menu sử dụng hàm draw_button chung để đồng nhất style"""
+        
         margin_x = 20
         margin_y = 20
         button_width = 120
         button_height = 40
         button_rect = pygame.Rect(self.width - margin_x - button_width, margin_y, button_width, button_height)
-        # Styling consistent with menu theme
-        pygame.draw.rect(screen, DARK_BLUE, button_rect, border_radius=8)
-        pygame.draw.rect(screen, WHITE, button_rect, 2, border_radius=8)
-        # Render label via font_manager for Vietnamese support
-        try:
-            text_surface = self.font_manager.render_text(label, 20, WHITE)
-            if text_surface:
-                text_rect = text_surface.get_rect(center=button_rect.center)
-                screen.blit(text_surface, text_rect)
-                return button_rect
-        except Exception:
-            pass
-
-        # Fallback
-        fallback_font = pygame.font.Font(None, 20)
-        text_surface = fallback_font.render(label, True, WHITE)
-        text_rect = text_surface.get_rect(center=button_rect.center)
-        screen.blit(text_surface, text_rect)
+        
+        # Sử dụng hàm draw_button chung với style "info"
+        draw_button(screen, font_small, button_rect, DARK_BLUE, label, "info")
+        
         return button_rect
 
     def handle_menu_button_event(self, event, button_rect):

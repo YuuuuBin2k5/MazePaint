@@ -276,29 +276,42 @@ def solve_maze(algorithm, current_maze, player_pos, history_groups):
     """
     Run selected solver and normalize its output for main:
     - path_result: dict with keys 'solving_path', 'preview_tiles', 'pending_solving_path'
-    - history_groups updated with add_to_history
+    - history_groups updated with add_to_history (execution time in ms)
     """
+    # Parse algorithm name to extract heuristic
+    base_algorithm = algorithm
+    heuristic_type = None
+    
+    if "_" in algorithm:
+        parts = algorithm.split("_", 1)
+        base_algorithm = parts[0]
+        heuristic_type = parts[1]
+    
     solvers = {
         "BFS": bfs_solve, "DFS": dfs_solve, "UCS": ucs_solve,
         "Greedy": greedy_solve, "Astar": astar_solve
     }
 
     path_result = {"solving_path": None, "preview_tiles": [], "pending_solving_path": None}
-    if algorithm not in solvers:
+    if base_algorithm not in solvers:
         return path_result, history_groups
 
     start_time = time.time()
     try:
-        result = solvers[algorithm](current_maze, player_pos)
+        if heuristic_type and base_algorithm in ["Greedy", "Astar"]:
+            # Pass heuristic to solver
+            result = solvers[base_algorithm](current_maze, player_pos, heuristic_type)
+        else:
+            result = solvers[base_algorithm](current_maze, player_pos)
     except Exception as e:
         print(f"⚠️ Error running solver {algorithm}: {e}")
         result = None
-    execution_time = (time.time() - start_time) * 1000
+    
+    execution_time_ms = (time.time() - start_time) * 1000.0
 
     if result and "path" in result:
         explored = result.get("explored")
         if explored:
-            # BFS returns dict(step -> list); other solvers may return list
             if isinstance(explored, dict):
                 seq = []
                 for k in sorted(explored.keys()):
@@ -314,11 +327,11 @@ def solve_maze(algorithm, current_maze, player_pos, history_groups):
             path_result["preview_tiles"] = preview
             path_result["pending_solving_path"] = result["path"][:] if result["path"] else []
         else:
-            path_result["solving_path"] = result["path"][:] if result["path"] else []
+            path_result["solving_path"] = result["path"][:] if result.get("path") else []
 
-        history_groups = add_to_history(history_groups, algorithm, current_maze, result, execution_time)
+        history_groups = add_to_history(history_groups, algorithm, current_maze, result, execution_time_ms)
     else:
-        history_groups = add_to_history(history_groups, algorithm, current_maze, {"path": []}, execution_time)
+        history_groups = add_to_history(history_groups, algorithm, current_maze, {"path": []}, execution_time_ms)
 
     return path_result, history_groups
 

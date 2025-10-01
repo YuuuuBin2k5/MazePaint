@@ -13,7 +13,7 @@ from Algorithm.DFS import dfs_solve
 from Algorithm.UCS import ucs_solve
 from Algorithm.Greedy import greedy_solve
 from Algorithm.Astar import astar_solve
-from Algorithm.func_algorithm import is_solvable_by_sliding
+from Algorithm.func_algorithm import find_connected_components
 from maps import *
 
 # Import cosmic selector
@@ -30,11 +30,8 @@ pygame.init()
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
 pygame.display.set_caption(WINDOW_TITLE)
 pygame.display.set_icon(pygame.image.load(ICON_PATH))
-from font_manager import font_vn, font_mono, font_large, font_small
+from font_manager import font_edit_panel, font_large, font_small
 
-# Khôi phục font dùng cho nút UI (giữ giao diện cũ)
-font_button = pygame.font.Font(None, 28)
-font_small = font_button
 
 clock = pygame.time.Clock()
 
@@ -801,17 +798,23 @@ while running:
     # Hiển thị thanh thông báo khi đang ở chế độ edit
     if edit_mode:
         try:
-            solvable = is_solvable_by_sliding(current_maze, tuple(player_pos))
-        except Exception:
-            solvable = False
+            player_pos_tuple = tuple(player_pos)
+            
+            # Chỉ cần lấy số thành phần liên thông
+            num_components = find_connected_components(current_maze, player_pos_tuple)
+            
+            # Không cần dòng 'solvable = (num_components == 1)' nữa
 
-        # gọi hàm UI đã tách
-        render_edit_check_panel(screen, solvable,
-                            player_rect, speed_display_rect,
-                            BOARD_Y, TILE_SIZE, maze_rows, WINDOW_WIDTH,
-                            font_vn)
+        except Exception as e:
+            print(f"Lỗi khi kiểm tra map: {e}") 
+            num_components = -1
 
-        
+        # Gọi hàm render đã được cập nhật (bỏ tham số 'solvable')
+        render_edit_check_panel(screen, num_components,
+                                player_rect, speed_display_rect,
+                                BOARD_Y, TILE_SIZE, maze_rows, WINDOW_WIDTH,
+                                font_edit_panel)
+
     pygame.display.flip()
     
 pygame.quit()

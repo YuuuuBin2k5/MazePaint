@@ -35,6 +35,7 @@ class CosmicAlgorithmSelector:
                         self.font_title = pygame.font.SysFont(font_name, 48, bold=True)
                         self.font_algo = pygame.font.SysFont(font_name, 32, bold=True) 
                         self.font_desc = pygame.font.SysFont(font_name, 22)
+                        self.font_heuristic = pygame.font.SysFont(font_name, 24, bold=True)
                         print(f"🚀 Using cosmic font: {font_name}")
                         font_found = True
                         break
@@ -47,12 +48,14 @@ class CosmicAlgorithmSelector:
                 self.font_title = pygame.font.Font(None, 48)
                 self.font_algo = pygame.font.Font(None, 32)
                 self.font_desc = pygame.font.Font(None, 22)
+                self.font_heuristic = pygame.font.Font(None, 24)
                 
         except Exception as e:
             print(f"Font error: {e}")
             self.font_title = pygame.font.Font(None, 42)
             self.font_algo = pygame.font.Font(None, 28)
             self.font_desc = pygame.font.Font(None, 20)
+            self.font_heuristic = pygame.font.Font(None, 22)
         
         # Algorithm data with cosmic descriptions in Vietnamese
         self.algorithms = [
@@ -100,12 +103,50 @@ class CosmicAlgorithmSelector:
             }
         ]
         
+        # Heuristic options for A* and Greedy
+        self.heuristics = [
+            {
+                "name": "[1]",
+                "title": "Not Done",
+                "desc": "1 nếu chưa xong, 0 nếu xong",
+                "color": (100, 255, 100),
+                "key": "1"
+            },
+            {
+                "name": "[2]",
+                "title": "Unpainted Count",
+                "desc": "Số ô chưa tô",
+                "color": (255, 100, 100),
+                "key": "2"
+            },
+            {
+                "name": "[3]",
+                "title": "Optimistic Moves",
+                "desc": "Ước tính số bước tối thiểu",
+                "color": (100, 100, 255),
+                "key": "3"
+            },
+            {
+                "name": "[4]",
+                "title": "Unpainted Components",
+                "desc": "Số thành phần liên thông chưa tô",
+                "color": (255, 255, 100),
+                "key": "4"
+            }
+        ]
+        
         # Animation state
         self.frame = 0
         self.selected_index = 0
         self.hover_index = -1
         self.stars = []
         self.init_stars()
+        
+        # Heuristic menu state
+        self.show_heuristic_menu = False
+        self.selected_algorithm_for_heuristic = None
+        self.heuristic_hover_index = -1
+        self.heuristic_selected_index = 0
         
         # Layout
         self.panel_width = 600
@@ -248,7 +289,10 @@ class CosmicAlgorithmSelector:
     
     def draw_cosmic_title(self, screen):
         """Draw animated cosmic title with enhanced effects"""
-        title_text = "VŨ TRỤ NAVIGATOR"
+        if self.show_heuristic_menu:
+            title_text = f"CHỌN HEURISTIC CHO {self.selected_algorithm_for_heuristic.upper()}"
+        else:
+            title_text = "VŨ TRỤ NAVIGATOR"
         
         # Multiple animated effects
         time_offset = self.frame * 0.08
@@ -293,11 +337,83 @@ class CosmicAlgorithmSelector:
         screen.blit(title_surf, title_rect)
         
         # Subtitle
-        subtitle_text = "Chọn Phương Thức Điều Hướng"
+        if self.show_heuristic_menu:
+            subtitle_text = "Chọn Phương Thức Đánh Giá Độ Lợi"
+        else:
+            subtitle_text = "Chọn Phương Thức Điều Hướng"
         subtitle_surf = self.safe_render_text(self.font_desc, subtitle_text, (150, 200, 255))
         subtitle_rect = subtitle_surf.get_rect(centerx=self.panel_x + self.panel_width // 2, 
                                              y=title_rect.bottom + 8)
         screen.blit(subtitle_surf, subtitle_rect)
+    
+    def draw_heuristic_button(self, screen, heuristic_data, index, button_rect):
+        """Draw heuristic selection button"""
+        is_selected = (index == self.heuristic_selected_index)
+        is_hovered = (index == self.heuristic_hover_index)
+        
+        # Button color logic
+        if is_selected:
+            base_color = tuple(min(255, int(c * 1.3)) for c in heuristic_data["color"])
+            border_highlight = (255, 255, 255)
+            border_shadow = tuple(max(0, int(c - 50)) for c in base_color)
+        elif is_hovered:
+            base_color = tuple(min(255, int(c * 1.1)) for c in heuristic_data["color"])
+            border_highlight = tuple(min(255, int(c + 40)) for c in base_color)
+            border_shadow = tuple(max(0, int(c - 30)) for c in base_color)
+        else:
+            base_color = heuristic_data["color"]
+            border_highlight = tuple(min(255, int(c + 20)) for c in base_color)
+            border_shadow = tuple(max(0, int(c - 40)) for c in base_color)
+        
+        # Draw gradient background
+        for y in range(button_rect.height):
+            ratio = y / button_rect.height
+            r = max(0, min(255, int(base_color[0] * (0.4 + 0.6 * (1 - ratio)))))
+            g = max(0, min(255, int(base_color[1] * (0.4 + 0.6 * (1 - ratio)))))
+            b = max(0, min(255, int(base_color[2] * (0.4 + 0.6 * (1 - ratio)))))
+            color = (r, g, b)
+            line_rect = pygame.Rect(button_rect.x, button_rect.y + y, button_rect.width, 1)
+            pygame.draw.rect(screen, color, line_rect)
+        
+        # 3D borders
+        pygame.draw.line(screen, border_highlight,
+                        (button_rect.left, button_rect.top),
+                        (button_rect.right, button_rect.top), 2)
+        pygame.draw.line(screen, border_highlight,
+                        (button_rect.left, button_rect.top),
+                        (button_rect.left, button_rect.bottom), 2)
+        pygame.draw.line(screen, border_shadow,
+                        (button_rect.left + 2, button_rect.bottom),
+                        (button_rect.right, button_rect.bottom), 2)
+        pygame.draw.line(screen, border_shadow,
+                        (button_rect.right, button_rect.top + 2),
+                        (button_rect.right, button_rect.bottom), 2)
+        
+        # Key indicator
+        key_surf = self.safe_render_text(self.font_heuristic, f"[{heuristic_data['key']}]", (255, 255, 255))
+        key_rect = key_surf.get_rect(x=button_rect.x + 10, y=button_rect.y + 5)
+        screen.blit(key_surf, key_rect)
+        
+        # Title
+        title_color = (255, 255, 255) if is_hovered else (220, 220, 220)
+        title_surf = self.safe_render_text(self.font_heuristic, heuristic_data["title"], title_color)
+        title_rect = title_surf.get_rect(x=button_rect.x + 50, y=button_rect.y + 5)
+        screen.blit(title_surf, title_rect)
+        
+        # Description
+        desc_color = (200, 200, 200) if is_hovered else (150, 150, 150)
+        desc_surf = self.safe_render_text(self.font_desc, heuristic_data["desc"], desc_color)
+        desc_rect = desc_surf.get_rect(x=button_rect.x + 50, y=button_rect.y + 30)
+        screen.blit(desc_surf, desc_rect)
+        
+        # Selection indicator
+        if is_selected:
+            time_offset = self.frame * 0.15
+            pulse_size = int(8 + 4 * math.sin(time_offset))
+            pygame.draw.circle(screen, (255, 255, 255), 
+                             (button_rect.x + 30, button_rect.y + 15), pulse_size)
+            pygame.draw.circle(screen, base_color, 
+                             (button_rect.x + 30, button_rect.y + 15), pulse_size - 2)
     
     def draw_algorithm_button(self, screen, algo_data, index, button_rect):
         """Draw 3D cosmic algorithm button"""
@@ -411,32 +527,84 @@ class CosmicAlgorithmSelector:
         y = self.buttons_start_y + index * (self.button_height + self.button_margin)
         return pygame.Rect(self.panel_x + 20, y, self.panel_width - 40, self.button_height)
     
+    def get_heuristic_button_rect(self, index):
+        """Get heuristic button rectangle for given index"""
+        button_height = 55
+        button_margin = 8
+        y = self.buttons_start_y + index * (button_height + button_margin)
+        return pygame.Rect(self.panel_x + 30, y, self.panel_width - 60, button_height)
+    
     def handle_mouse_motion(self, mouse_pos):
         """Handle mouse motion for hover effects"""
-        self.hover_index = -1
-        for i in range(len(self.algorithms)):
-            button_rect = self.get_button_rect(i)
-            if button_rect.collidepoint(mouse_pos):
-                self.hover_index = i
-                break
+        if self.show_heuristic_menu:
+            self.heuristic_hover_index = -1
+            for i in range(len(self.heuristics)):
+                button_rect = self.get_heuristic_button_rect(i)
+                if button_rect.collidepoint(mouse_pos):
+                    self.heuristic_hover_index = i
+                    break
+        else:
+            self.hover_index = -1
+            for i in range(len(self.algorithms)):
+                button_rect = self.get_button_rect(i)
+                if button_rect.collidepoint(mouse_pos):
+                    self.hover_index = i
+                    break
     
     def handle_mouse_click(self, mouse_pos):
         """Handle mouse click for selection"""
-        for i in range(len(self.algorithms)):
-            button_rect = self.get_button_rect(i)
-            if button_rect.collidepoint(mouse_pos):
-                self.selected_index = i
-                return self.algorithms[i]["name"]
+        if self.show_heuristic_menu:
+            for i in range(len(self.heuristics)):
+                button_rect = self.get_heuristic_button_rect(i)
+                if button_rect.collidepoint(mouse_pos):
+                    heuristic_name = self.heuristics[i]["name"]
+                    return f"{self.selected_algorithm_for_heuristic}_{heuristic_name}"
+        else:
+            for i in range(len(self.algorithms)):
+                button_rect = self.get_button_rect(i)
+                if button_rect.collidepoint(mouse_pos):
+                    self.selected_index = i
+                    algo_name = self.algorithms[i]["name"]
+                    if algo_name in ["Astar", "Greedy"]:
+                        self.show_heuristic_menu = True
+                        self.selected_algorithm_for_heuristic = algo_name
+                        return None
+                    else:
+                        return algo_name
         return None
     
     def handle_key_press(self, key):
         """Handle keyboard navigation"""
-        if key == pygame.K_UP:
-            self.selected_index = max(0, self.selected_index - 1)
-        elif key == pygame.K_DOWN:
-            self.selected_index = min(len(self.algorithms) - 1, self.selected_index + 1)
-        elif key == pygame.K_RETURN or key == pygame.K_SPACE:
-            return self.algorithms[self.selected_index]["name"]
+        if self.show_heuristic_menu:
+            if key == pygame.K_ESCAPE:
+                self.show_heuristic_menu = False
+                return None
+            elif key == pygame.K_UP:
+                self.heuristic_selected_index = max(0, self.heuristic_selected_index - 1)
+            elif key == pygame.K_DOWN:
+                self.heuristic_selected_index = min(len(self.heuristics) - 1, self.heuristic_selected_index + 1)
+            elif key == pygame.K_RETURN or key == pygame.K_SPACE:
+                heuristic_name = self.heuristics[self.heuristic_selected_index]["name"]
+                return f"{self.selected_algorithm_for_heuristic}_{heuristic_name}"
+            else:
+                # Check number keys
+                for i, heuristic in enumerate(self.heuristics):
+                    if key == getattr(pygame, f"K_{heuristic['key']}", None):
+                        heuristic_name = heuristic["name"]
+                        return f"{self.selected_algorithm_for_heuristic}_{heuristic_name}"
+        else:
+            if key == pygame.K_UP:
+                self.selected_index = max(0, self.selected_index - 1)
+            elif key == pygame.K_DOWN:
+                self.selected_index = min(len(self.algorithms) - 1, self.selected_index + 1)
+            elif key == pygame.K_RETURN or key == pygame.K_SPACE:
+                algo_name = self.algorithms[self.selected_index]["name"]
+                if algo_name in ["Astar", "Greedy"]:
+                    self.show_heuristic_menu = True
+                    self.selected_algorithm_for_heuristic = algo_name
+                    return None
+                else:
+                    return algo_name
         return None
     
     def update(self):
@@ -456,13 +624,24 @@ class CosmicAlgorithmSelector:
         self.draw_3d_panel(screen)
         self.draw_cosmic_title(screen)
         
-        # Draw algorithm buttons
-        for i, algo_data in enumerate(self.algorithms):
-            button_rect = self.get_button_rect(i)
-            self.draw_algorithm_button(screen, algo_data, i, button_rect)
+        if self.show_heuristic_menu:
+            # Draw heuristic selection buttons
+            for i, heuristic_data in enumerate(self.heuristics):
+                button_rect = self.get_heuristic_button_rect(i)
+                self.draw_heuristic_button(screen, heuristic_data, i, button_rect)
+            
+            # Instructions for heuristic menu
+            instruction_text = "↑↓ Di chuyển | 1-4 Chọn nhanh | ENTER Chọn | ESC Quay lại"
+        else:
+            # Draw algorithm buttons
+            for i, algo_data in enumerate(self.algorithms):
+                button_rect = self.get_button_rect(i)
+                self.draw_algorithm_button(screen, algo_data, i, button_rect)
+            
+            # Instructions for main menu
+            instruction_text = "↑↓ Di chuyển | ENTER Chọn | ESC Hủy"
         
         # Draw instructions
-        instruction_text = "↑↓ Di chuyển | ENTER Chọn | ESC Hủy"
         instruction_surf = self.font_desc.render(instruction_text, True, (150, 150, 150))
         instruction_rect = instruction_surf.get_rect(centerx=self.screen_width // 2,
                                                    y=self.panel_y + self.panel_height + 20)
@@ -484,7 +663,7 @@ def cosmic_algorithm_selector(screen, clock):
             if event.type == pygame.QUIT:
                 return None
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
+                if event.key == pygame.K_ESCAPE and not selector.show_heuristic_menu:
                     return None
                 else:
                     result = selector.handle_key_press(event.key)

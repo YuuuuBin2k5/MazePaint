@@ -2,18 +2,22 @@ import heapq
 import random
 import time
 from config import MAZE_ROWS, MAZE_COLS, PATH
-from .func_algorithm import simulate_move, MOVES, reconstruct_path_astar_ucs, heuristic
+from .func_algorithm import simulate_move, MOVES, reconstruct_path_astar_ucs, get_heuristic_function
 
-def astar_solve(maze, start_pos):
+def astar_solve(maze, start_pos, heuristic_type="unpainted_count"):
     """
-    Giải quyết mê cung bằng A* Search và ghi lại log tuần tự.
+    Giải quyết mê cung bằng A* với heuristic có thể chọn.
     """
     total_path_tiles = sum(r.count(0) for r in maze)
     initial_painted = frozenset([tuple(start_pos)])
     start_state = (tuple(start_pos), initial_painted)
 
-    pq = [(heuristic(initial_painted, total_path_tiles), 0, 0, start_state)]  # (f, g, tie_breaker, state)
-    visited = {start_state: [0, None, None]}
+    # Lấy hàm heuristic
+    heuristic_func = get_heuristic_function(heuristic_type, maze)
+
+    # f(n) = g(n) + h(n)
+    pq = [(0 + heuristic_func(initial_painted, total_path_tiles), 0, start_state)]
+    visited = {start_state: [0, None, None]}  # [cost, parent, move]
     num_of_states = 0
     visited_count = 0
     start_time = time.time()
@@ -21,7 +25,7 @@ def astar_solve(maze, start_pos):
     explored = dict()
     stt = 0
     while pq:
-        f, g, _, current_state = heapq.heappop(pq)
+        f_cost, g_cost, current_state = heapq.heappop(pq)
         current_pos, painted_tiles = current_state
         visited_count += 1
 
@@ -66,13 +70,14 @@ def astar_solve(maze, start_pos):
 
             new_painted_set = painted_tiles.union(newly_painted)
             new_state = (next_pos, new_painted_set)
-            g_new = g + 1
-            f_new = g_new + heuristic(new_painted_set, total_path_tiles)
-            if new_state not in visited or g_new < visited[new_state][0]:
-                if new_state not in visited:
-                    num_of_states += 1
-                visited[new_state] = [g_new, current_state, move]
-                heapq.heappush(pq, (f_new, g_new, stt, new_state))
+            new_g_cost = g_cost + 1  # Cost của mỗi bước là 1
+            new_h_cost = heuristic_func(new_painted_set, total_path_tiles)
+            new_f_cost = new_g_cost + new_h_cost
+
+            if new_state not in visited or new_g_cost < visited[new_state][0]:
+                num_of_states += 1
+                visited[new_state] = [new_g_cost, current_state, move]
+                heapq.heappush(pq, (new_f_cost, new_g_cost, new_state))
 
         explored[stt] = possible_paint
         stt += 1

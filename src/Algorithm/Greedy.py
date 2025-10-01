@@ -2,17 +2,20 @@ import heapq
 import random
 import time
 from config import MAZE_ROWS, MAZE_COLS, PATH
-from .func_algorithm import simulate_move, MOVES, reconstruct_path, heuristic
+from .func_algorithm import simulate_move, MOVES, reconstruct_path, get_heuristic_function
 
-def greedy_solve(maze, start_pos):
+def greedy_solve(maze, start_pos, heuristic_type="unpainted_count"):
     """
-    Giải quyết mê cung bằng Greedy Best-First Search và ghi lại log tuần tự đơn giản.
+    Giải quyết mê cung bằng Greedy Best-First Search với heuristic có thể chọn.
     """
     total_path_tiles = sum(r.count(0) for r in maze)
     initial_painted = frozenset([tuple(start_pos)])
     start_state = (tuple(start_pos), initial_painted)
 
-    pq = [(heuristic(initial_painted, total_path_tiles), 0, start_state)]
+    # Lấy hàm heuristic
+    heuristic_func = get_heuristic_function(heuristic_type, maze)
+
+    pq = [(heuristic_func(initial_painted, total_path_tiles), 0, start_state)]
     visited = {start_state: (None, None)}
     num_of_states = 0
     visited_count = 0
@@ -69,7 +72,7 @@ def greedy_solve(maze, start_pos):
             if new_state not in visited:
                 num_of_states += 1
                 visited[new_state] = (current_state, move)
-                heapq.heappush(pq, (heuristic(new_painted_set, total_path_tiles), stt, new_state))
+                heapq.heappush(pq, (heuristic_func(new_painted_set, total_path_tiles), stt, new_state))
 
         explored[stt] = possible_paint
         stt += 1
