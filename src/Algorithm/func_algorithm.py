@@ -111,41 +111,43 @@ def heuristic(painted_tiles, total_path_tiles):
 
 # Tìm các ô có thể tiếp cận bằng cách trượt
 def find_connected_components(maze, start_pos):
-    nodes_to_visit = set()
-    for r in range(MAZE_ROWS):
-        for c in range(MAZE_COLS):
-            if maze[r][c] == 0:
-                nodes_to_visit.add((r, c))
-
+    nodes_to_visit = {(r, c) for r in range(MAZE_ROWS) for c in range(MAZE_COLS) if maze[r][c] == 0}
     if not nodes_to_visit:
         return 0
 
+    def bfs(start):
+        dq = collections.deque([start])
+        if start in nodes_to_visit:
+            nodes_to_visit.remove(start)
+        
+        while dq:
+            current_pos = dq.popleft()
+            for direction in MOVES:
+                reachable_node, reachable_paint = simulate_move(current_pos, MAZE_ROWS, MAZE_COLS, direction, maze)
+                
+                # Tìm ra những ô mới thực sự được tô trong cú trượt này
+                newly_painted_tiles = reachable_paint & nodes_to_visit
+
+                # THAY ĐỔI THEO YÊU CẦU:
+                # Chỉ xử lý nếu cú trượt này tô được ít nhất một ô mới.
+                if newly_painted_tiles:
+                    
+                    # Xóa tất cả các ô mới được tô khỏi tập nodes_to_visit
+                    nodes_to_visit.difference_update(newly_painted_tiles)
+                    
+                    # Thêm điểm cuối vào hàng đợi để tiếp tục khám phá,
+                    # nhưng chỉ khi điểm cuối đó chưa từng được thêm vào hàng đợi trước đây.
+                    # Điều kiện `reachable_node in newly_painted_tiles` đảm bảo điều này.
+                    if reachable_node in newly_painted_tiles:
+                        dq.append(reachable_node)
+
     component_count = 0
-
-    if start_pos in nodes_to_visit:
-        component_count = 1
-        dq = collections.deque([start_pos])
-        nodes_to_visit.remove(start_pos) # Đánh dấu đã thăm
-
-        while dq:
-            current_pos = dq.popleft()
-            for direction in MOVES:
-                reachable_node, _ = simulate_move(current_pos, MAZE_ROWS, MAZE_COLS, direction, maze)
-                if reachable_node in nodes_to_visit:
-                    nodes_to_visit.remove(reachable_node)
-                    dq.append(reachable_node)
-
     while nodes_to_visit:
+        if start_pos in nodes_to_visit:
+            bfs(start_pos)
+        else:
+            bfs(next(iter(nodes_to_visit)))
         component_count += 1
-        new_start_node = nodes_to_visit.pop()
-        dq = collections.deque([new_start_node])
-        while dq:
-            current_pos = dq.popleft()
-            for direction in MOVES:
-                reachable_node, _ = simulate_move(current_pos, MAZE_ROWS, MAZE_COLS, direction, maze)
-                if reachable_node in nodes_to_visit:
-                    nodes_to_visit.remove(reachable_node)
-                    dq.append(reachable_node)
     
     return component_count
 

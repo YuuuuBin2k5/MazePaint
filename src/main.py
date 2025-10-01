@@ -399,8 +399,11 @@ while running:
                         result = cosmic_selector.handle_key_press(event.key)
                         if result:
                             algorithm = result
-                            show_algorithm_selector = False
-                            sound_manager.play_button_sound()  # Âm thanh chọn thuật toán
+                            show_algorithm_selector = False  # Đóng selector
+                            # Reset cosmic selector state
+                            cosmic_selector.show_heuristic_menu = False
+                            cosmic_selector.selected_algorithm_for_heuristic = None
+                            sound_manager.play_button_sound()
                 elif event.type == pygame.MOUSEMOTION:
                     cosmic_selector.handle_mouse_motion(event.pos)
                 elif event.type == pygame.MOUSEBUTTONDOWN:
@@ -408,7 +411,10 @@ while running:
                         result = cosmic_selector.handle_mouse_click(event.pos)
                         if result:
                             algorithm = result
-                            show_algorithm_selector = False
+                            show_algorithm_selector = False  # Đóng selector
+                            # Reset cosmic selector state
+                            cosmic_selector.show_heuristic_menu = False
+                            cosmic_selector.selected_algorithm_for_heuristic = None
                             sound_manager.play_button_sound()  # Âm thanh chọn thuật toán
     
     # === MAIN GAME LOGIC ===
@@ -733,7 +739,7 @@ while running:
             # Panel và close button rects
             panel_rect = pygame.Rect(110, 20, 900, 580)
             close_rect = pygame.Rect(panel_rect.right - 40, panel_rect.top + 10, 30, 30)
-            
+
             # Colors dictionary cho panel
             colors = {
                 'bg': (30, 40, 60, 220),  # Background với alpha
