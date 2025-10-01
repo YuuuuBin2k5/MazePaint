@@ -66,7 +66,7 @@ VICTORY_PHASE3_SOUND = SOUND_PATH + "victory2.mp3"  # Âm thanh đặc biệt ph
 PLAYER_RADIUS = TILE_SIZE // 3
 
 # -- CÀI ĐẶT ANIMATION VÀ MOVEMENT --
-SMOOTH_MOVE_SPEED = 0.8    # Tốc độ chuyển động mượt mà (tăng để nhanh hơn khi auto solve)
+SMOOTH_MOVE_SPEED = 0.9    # Tốc độ chuyển động mượt mà (tăng để nhanh hơn khi auto solve)
 SOLVER_MOVE_INTERVAL = 800  # Tốc độ mặc định (1x) - giống như manual với đầy đủ animation
 BASE_SOLVER_INTERVAL = 800  # Tốc độ cơ sở để tính toán multiple
 PLAYER_MOVE_INTERVAL = 180  # Thời gian cooldown cho player movement

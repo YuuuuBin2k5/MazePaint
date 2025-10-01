@@ -2,8 +2,9 @@
 # main.py
 import pygame
 import copy
+import time
+from pathlib import Path
 from config import *
-from config import SELECTED_SPACESHIP, get_selected_spaceship
 from Ui.ui import *
 from Ui.spaceship import update_star_particles, draw_star_particles, ease_in_out_quart, reload_spaceship
 from func_game import *
@@ -12,6 +13,7 @@ from Algorithm.DFS import dfs_solve
 from Algorithm.UCS import ucs_solve
 from Algorithm.Greedy import greedy_solve
 from Algorithm.Astar import astar_solve
+from Algorithm.func_algorithm import find_connected_components, is_solvable_by_sliding
 from maps import *
 
 # Import cosmic selector
@@ -28,8 +30,12 @@ pygame.init()
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
 pygame.display.set_caption(WINDOW_TITLE)
 pygame.display.set_icon(pygame.image.load(ICON_PATH))
-font_large = pygame.font.Font(None, 74)
-font_small = pygame.font.Font(None, 28)
+from font_manager import font_vn, font_mono, font_large, font_small
+
+# Khôi phục font dùng cho nút UI (giữ giao diện cũ)
+font_button = pygame.font.Font(None, 28)
+font_small = font_button
+
 clock = pygame.time.Clock()
 
 # Khởi tạo game manager
@@ -38,6 +44,11 @@ game_manager = GameManager(WINDOW_WIDTH, WINDOW_HEIGHT)
 # Khởi tạo cosmic selector
 cosmic_selector = CosmicAlgorithmSelector(WINDOW_WIDTH, WINDOW_HEIGHT)
 show_algorithm_selector = False
+edit_mode = False  # When True, clicking on board toggles wall/path
+# Edit painting state
+is_mouse_editing = False
+edit_paint_value = None  # either WALL or PATH while dragging
+last_edited_cell = (-1, -1)
 
 # --- KHAI BÁO BIẾN TRẠNG THÁI ---
 # Speed control system - x1, x5, x10, x20
@@ -45,10 +56,10 @@ speed_multipliers = [1, 5, 10, 20]
 current_speed_index = 0  # Bắt đầu với x1
 SOLVER_MOVE_INTERVAL = BASE_SOLVER_INTERVAL // speed_multipliers[current_speed_index]
 
-all_maps = {"1": LEVEL_ONE, "2": LEVEL_TWO, 
-            "3": LEVEL_THREE, "4": LEVEL_FOUR,
-            "5": LEVEL_FIVE, "6": LEVEL_SIX,
-            "7": LEVEL_SEVEN}
+all_maps = {"0": MAP_ZERO, "1": MAP_ONE, "2": MAP_TWO, 
+            "3": MAP_THREE, "4": MAP_FOUR,
+            "5": MAP_FIVE, "6": MAP_SIX,
+            "7": MAP_SEVEN}
 map_names = list(all_maps.keys())
 current_map_index = 0
 current_maze = all_maps[map_names[current_map_index]]
@@ -58,6 +69,7 @@ maze_cols = len(current_maze[0])
 
 algorithm = "Player"
 move_count = 0
+level_start_time = None
 
 # KHỞI TẠO GAME LẦN ĐẦU
 player_pos = [1, 1]
@@ -80,12 +92,14 @@ current_auto_direction = None  # Hướng di chuyển khi auto solve
 last_auto_direction = None  # Lưu direction cuối cùng để dùng khi smooth movement
 
 # Smart Input Queue System - now imported from movement_queue.py
-# from movement_queue import movement_queue, add_movement_to_queue, get_next_movement, clear_movement_queue
 time_since_last_move = 0
 time_since_last_player_move = 0  # Thêm cooldown cho player
 
 # --- KHAI BÁO RECT CHO CÁC BUTTON ---
-map_rect = pygame.Rect(BUTTON_X, MAP_BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT)
+map_rect = pygame.Rect(BUTTON_X, MAP_BUTTON_Y, BUTTON_WIDTH - 70, BUTTON_HEIGHT)
+# Edit button width (computed dynamically to avoid going off-window)
+EDIT_BUTTON_WIDTH = 80
+edit_rect = pygame.Rect(BUTTON_X + BUTTON_WIDTH - 70, MAP_BUTTON_Y, EDIT_BUTTON_WIDTH, BUTTON_HEIGHT)
 
 # --- KHỞI TẠO HỆ THỐNG ÂM THANH ---
 # Start background music
@@ -108,107 +122,23 @@ frame = 0
 victory_frame = 0  # Frame counter riêng cho victory animation
 victory_phase3_sound_played = False  # Flag để đảm bảo âm thanh phase 3 chỉ phát 1 lần
 
-# Function để reset game
-def reset_game():
-    """Reset game về trạng thái ban đầu"""
-    global player_pos, player_visual_pos, player_target_pos, is_moving_smooth
-    global movement_progress, current_auto_direction, last_auto_direction
-    global painted_tiles, board_before_player_moves, game_won, solving_path
-    global move_count, victory_frame, victory_phase3_sound_played
-    global current_maze, maze_rows, maze_cols
-    
-    # Reset map if needed
-    current_maze = all_maps[map_names[current_map_index]]
-    maze_rows = len(current_maze)
-    maze_cols = len(current_maze[0])
-    
-    player_pos = [1, 1]
-    player_visual_pos = [1, 1] 
-    player_target_pos = [1, 1]
-    is_moving_smooth = False
-    movement_progress = 0.0
-    current_auto_direction = None
-    last_auto_direction = None
-    painted_tiles = [[False for _ in range(maze_cols)] for _ in range(maze_rows)]
-    painted_tiles[player_pos[0]][player_pos[1]] = True
-    board_before_player_moves = None
-    game_won = False
-    solving_path = None
-    move_count = 0
-    victory_frame = 0
-    victory_phase3_sound_played = False
+# --- PREVIEW EXPLORED (HIỂN THỊ VÀNG) ---
+preview_tiles = []            # ordered list of tiles to reveal (row,col)
+preview_painted = set()       # tiles already revealed (for rendering)
+preview_running = False
+pending_solving_path = None   # hold directions until preview finished
+PREVIEW_TILE_INTERVAL = 0.03  # seconds between revealed preview tiles
+time_since_last_preview = 0.0
 
-def solve_maze():
-    """Giải maze với thuật toán đã chọn"""
-    global solving_path, history_groups
-    
-    try:
-        # Ghi lại thời gian bắt đầu
-        import time
-        start_time = time.time()
-        
-        result = None
-        if algorithm == "BFS":
-            result = bfs_solve(current_maze, player_pos)
-        elif algorithm == "DFS":
-            result = dfs_solve(current_maze, player_pos)
-        elif algorithm == "UCS":
-            result = ucs_solve(current_maze, player_pos)
-        elif algorithm == "Greedy":
-            result = greedy_solve(current_maze, player_pos)
-        elif algorithm == "A*":
-            result = astar_solve(current_maze, player_pos)
-        else:
-            solving_path = None
-            return
-            
-        # Tính thời gian thực thi
-        execution_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-        
-        if result and "path" in result:
-            solving_path = result["path"][:]  # Copy the path
-            
-            # Ghi vào history
-            add_to_history(algorithm, result, execution_time)
-        else:
-            solving_path = None
-            
-            # Ghi vào history ngay cả khi không tìm thấy đường
-            add_to_history(algorithm, {"path": [], "visited_count": 0, "generated_count": 0}, execution_time)
-            
-    except Exception as e:
-        solving_path = None
-        
-    sound_manager.switch_to_background_music()
+# Surface preview tái sử dụng (tránh tạo mỗi frame)
+# tạo surface sau khi TILE_SIZE đã có giá trị
+preview_surf = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
+preview_surf.fill((255, 204, 0, 150))  # màu vàng bán trong suốt
 
-# Thêm log để kiểm tra dữ liệu từ thuật toán và history_groups
-
-def add_to_history(algorithm_name, result, execution_time):
-    """Thêm kết quả giải maze vào history"""
-    global history_groups, current_maze
-
-    # Tạo state key từ maze hiện tại
-    state_tuple = tuple(tuple(row) for row in current_maze)
-
-    # Nếu chưa có nhóm cho maze này, tạo mới
-    if state_tuple not in history_groups:
-        history_groups[state_tuple] = {
-            'rows': len(current_maze),
-            'cols': len(current_maze[0]) if current_maze else 0,
-            'maze': [row[:] for row in current_maze],  # Deep copy maze
-            'results': []
-        }
-
-    # Thêm kết quả mới
-    new_result = {
-        'algorithm': algorithm_name,
-        'steps': len(result.get("path", [])),
-        'visited_count': result.get("visited", 0),  # Sử dụng đúng tên khóa
-        'generated_count': result.get("states", 0),  # Sử dụng đúng tên khóa
-        'execution_time': round(execution_time, 2)
-    }
-
-    history_groups[state_tuple]['results'].append(new_result)
+# --- new: runtime preview control ---
+# thực tế sẽ gán preview_tile_interval_run khi bắt đầu preview
+preview_tile_interval_run = PREVIEW_TILE_INTERVAL
+preview_elapsed_total = 0.0  # tổng thời gian preview đã chạy (s)
 
 # --- VÒNG LẶP CHÍNH ---
 running = True
@@ -218,6 +148,7 @@ while running:
     
     # Cập nhật game manager
     game_manager.update()
+    
     # Precompute in-game Menu button rect so event handling (which happens next) can use it
     if game_manager.is_in_game():
         try:
@@ -248,17 +179,13 @@ while running:
                 break
             elif result == "START_GAME":
                 # Bắt đầu game - reset trạng thái
-                reset_game()
+                state = reset_game(current_map_index, all_maps)
+                apply_state(state)
                 sound_manager.play_button_sound()
             elif result == "SHIP_SELECTED":
                 sound_manager.play_button_sound()
                 # Reload spaceship với phi thuyền mới được chọn
                 reload_spaceship()
-            elif result in ["BUTTON_HOVER", "BUTTON_CLICK"]:
-                if result == "BUTTON_HOVER":
-                    pass  # Có thể thêm hover sound nếu muốn
-                else:
-                    sound_manager.play_button_sound()
         
         elif game_manager.is_in_game():
             # === XỬ LÝ VICTORY SCREEN EVENTS ===
@@ -268,11 +195,13 @@ while running:
                     if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
                         # Tiếp tục chơi level tiếp theo
                         current_map_index = (current_map_index + 1) % len(all_maps)
-                        reset_game()
+                        state = reset_game(current_map_index, all_maps)
+                        apply_state(state)
                         sound_manager.play_button_sound()
                     elif event.key == pygame.K_r:
                         # Chơi lại level hiện tại
-                        reset_game()
+                        state = reset_game(current_map_index, all_maps)
+                        apply_state(state)
                         sound_manager.play_button_sound()
                     elif event.key == pygame.K_ESCAPE:
                         # Quay về menu
@@ -283,7 +212,8 @@ while running:
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     # Click bất kỳ để tiếp tục level tiếp theo
                     current_map_index = (current_map_index + 1) % len(all_maps)
-                    reset_game()
+                    state = reset_game(current_map_index, all_maps)
+                    apply_state(state)
                     sound_manager.play_button_sound()
                 continue  # Bỏ qua các xử lý khác khi đang trong victory screen
             
@@ -298,68 +228,162 @@ while running:
             # === XỬ LÝ MOUSE CLICK CHO UI BUTTONS ===
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:  # Left click
                 mouse_pos = event.pos
-                
+                handled = False  # flag to prevent clicks falling through to other UI
+
                 # Map button click
                 if map_rect.collidepoint(mouse_pos):
                     current_map_index = (current_map_index + 1) % len(all_maps)
-                    reset_game()  # Reset với map mới
+                    state = reset_game(current_map_index, all_maps)
+                    apply_state(state)
                     sound_manager.play_button_sound()
-                
+                    handled = True
+
+                # Edit button click
+                elif edit_rect.collidepoint(mouse_pos):
+                    edit_mode = not edit_mode
+                    if not edit_mode:
+                        save_current_map_to_file(current_map_index, current_maze)
+                    sound_manager.play_button_sound()
+                    handled = True
+
                 # Algorithm/Player button click
                 elif player_rect.collidepoint(mouse_pos):
                     show_algorithm_selector = True
                     sound_manager.play_button_sound()
-                
+                    handled = True
+
                 # Solve button click
-                elif solver_rect.collidepoint(mouse_pos) and not solving_path and not game_won:
-                    solve_maze()
+                elif solver_rect.collidepoint(mouse_pos) and not solving_path and not game_won and not preview_running:
+                    path_result, history_groups = solve_maze(algorithm, current_maze, player_pos, history_groups)
+                    if path_result.get("preview_tiles"):
+                        preview_tiles = path_result["preview_tiles"][:]
+                        preview_painted = set()
+                        preview_running = True
+                        preview_elapsed_total = 0.0
+                        time_since_last_preview = 0.0
+
+                        pending_solving_path = path_result.get("pending_solving_path", [])[:] if path_result.get("pending_solving_path") else []
+                        solving_path = None
+
+                        num_steps = len(pending_solving_path)
+                        num_preview = max(1, len(preview_tiles))
+                        if num_steps > 0:
+                            preview_tile_interval_run = (num_steps * SOLVER_MOVE_INTERVAL) / num_preview / 1000.0
+                        else:
+                            preview_tile_interval_run = PREVIEW_TILE_INTERVAL
+                    elif path_result.get("solving_path"):
+                        solving_path = path_result["solving_path"][:] if path_result.get("solving_path") else []
+                        preview_tiles = []
+                        preview_painted = set()
+                        preview_running = False
+                        pending_solving_path = None
                     sound_manager.play_algorithm_start_sound()
-                
+                    handled = True
+
                 # Restart button click
                 elif restart_rect.collidepoint(mouse_pos):
-                    reset_game()
+                    state = reset_game(current_map_index, all_maps)
+                    apply_state(state)
                     sound_manager.play_button_sound()
-                
-                # History button click
+                    handled = True
+
+                # History toggle button click (open/close)
                 elif history_rect.collidepoint(mouse_pos):
                     show_history_panel = not show_history_panel
                     sound_manager.play_button_sound()
-                
+                    handled = True
+
                 # Speed decrease button
                 elif speed_decrease_rect.collidepoint(mouse_pos):
                     if current_speed_index > 0:
                         current_speed_index -= 1
                         SOLVER_MOVE_INTERVAL = BASE_SOLVER_INTERVAL // speed_multipliers[current_speed_index]
+                        update_preview_interval()
                         sound_manager.play_button_sound()
-                
+                    handled = True
+
                 # Speed increase button
                 elif speed_increase_rect.collidepoint(mouse_pos):
                     if current_speed_index < len(speed_multipliers) - 1:
                         current_speed_index += 1
                         SOLVER_MOVE_INTERVAL = BASE_SOLVER_INTERVAL // speed_multipliers[current_speed_index]
+                        update_preview_interval()
                         sound_manager.play_button_sound()
-                
-                # History panel interactions
-                elif show_history_panel:
+                    handled = True
+
+                # If history panel is open, handle its interactive clicks (close / clear)
+                if show_history_panel and not handled:
                     panel_rect = pygame.Rect(110, 20, 900, 580)
                     close_rect = pygame.Rect(panel_rect.right - 40, panel_rect.top + 10, 30, 30)
-                    
+
                     # Close button click
                     if close_rect.collidepoint(mouse_pos):
                         show_history_panel = False
                         sound_manager.play_button_sound()
-                    # Clear history button (using same logic as old history button)
+                        handled = True
+                    # Clear history button (use same rect logic or another UI element)
                     elif history_rect.collidepoint(mouse_pos):
                         history_groups.clear()
                         sound_manager.play_button_sound()
+                        handled = True
 
-                # In-game Menu button (when in GAME state)
-                if game_manager.is_in_game() and menu_button_rect and menu_button_rect.collidepoint(mouse_pos):
-                    # Simulate ESC keydown event and let game_manager handle the transition
+                # In-game Menu button (when in GAME state) - only if not already handled
+                if not handled and game_manager.is_in_game() and menu_button_rect and menu_button_rect.collidepoint(mouse_pos):
                     fake_event = pygame.event.Event(pygame.KEYDOWN, {'key': pygame.K_ESCAPE})
                     result = game_manager.handle_event(fake_event)
                     if result == "BACK_TO_MENU":
                         sound_manager.play_button_sound()
+                    handled = True
+
+                # If we already handled this click, skip further processing for this event
+                if handled:
+                    continue
+
+            # Handle clicks on the board when in edit mode
+            # Handle mouse down to start edit/paint
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and edit_mode:
+                mx, my = event.pos
+                bx = mx - BOARD_X
+                by = my - BOARD_Y
+                if 0 <= bx < MAZE_COLS * TILE_SIZE and 0 <= by < MAZE_ROWS * TILE_SIZE:
+                    col = bx // TILE_SIZE
+                    row = by // TILE_SIZE
+                    if 0 <= row < maze_rows and 0 <= col < maze_cols:
+                        # Determine paint value based on current cell: we will set all dragged cells to this value
+                        desired = WALL if current_maze[row][col] == PATH else PATH
+                        edit_paint_value = desired
+                        is_mouse_editing = True
+                        last_edited_cell = (row, col)
+                        # Apply once to this cell
+                        if current_maze[row][col] != edit_paint_value:
+                            current_maze[row][col] = edit_paint_value
+                            painted_tiles[row][col] = False
+                            sound_manager.play_button_sound()
+                            save_current_map_to_file(current_map_index, current_maze)
+
+            # Support dragging edits: while left mouse button is held, set cells to edit_paint_value
+            if event.type == pygame.MOUSEMOTION and edit_mode and pygame.mouse.get_pressed()[0] and is_mouse_editing:
+                mx, my = event.pos
+                bx = mx - BOARD_X
+                by = my - BOARD_Y
+                if 0 <= bx < MAZE_COLS * TILE_SIZE and 0 <= by < MAZE_ROWS * TILE_SIZE:
+                    col = bx // TILE_SIZE
+                    row = by // TILE_SIZE
+                    if 0 <= row < maze_rows and 0 <= col < maze_cols:
+                        if (row, col) != last_edited_cell:
+                            # Only change if different from desired value
+                            if current_maze[row][col] != edit_paint_value:
+                                current_maze[row][col] = edit_paint_value
+                                painted_tiles[row][col] = False
+                                sound_manager.play_button_sound()
+                                save_current_map_to_file(current_map_index, current_maze)
+                            last_edited_cell = (row, col)
+
+            # End painting when mouse button is released
+            if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and is_mouse_editing:
+                is_mouse_editing = False
+                edit_paint_value = None
+                last_edited_cell = (-1, -1)
             
             # History panel scroll handling
             elif show_history_panel and event.type == pygame.MOUSEWHEEL:
@@ -442,7 +466,6 @@ while running:
         # Kiểm tra có thể thực hiện movement tiếp theo
         if time_since_last_player_move >= PLAYER_MOVE_INTERVAL:
             move_direction = get_next_movement()  # Lấy từ queue thay vì check keys
-            
             # Di chuyển nếu có hướng từ queue
             if move_direction:
                 # Tối ưu: chỉ backup board khi thực sự cần
@@ -476,7 +499,7 @@ while running:
                     sound_manager.play_move_sound()  # Âm thanh di chuyển thủ công
                     
                 time_since_last_player_move = 0  # Reset cooldown
-                
+                 
      # Xử lý smooth movement - áp dụng cho cả manual và auto solve
     if is_moving_smooth:
         # Tính toán vị trí hiển thị theo interpolation với easing
@@ -553,6 +576,22 @@ while running:
                 victory_phase3_sound_played = False  # Reset flag khi bắt đầu victory
                 sound_manager.play_win_sound()  # Âm thanh chiến thắng ngắn
                 sound_manager.switch_to_victory_music()  # Chuyển sang nhạc chiến thắng
+                # Nếu người chơi chơi bằng tay (Player), lưu số liệu vào history
+                try:
+                    if algorithm == "Player":
+                        elapsed_ms = 0
+                        if level_start_time is not None:
+                            elapsed_ms = (time.time() - level_start_time) * 1000
+                        add_to_history("Player", {
+                            "path": [],
+                            "visited": 0,
+                            "states": 0,
+                            # steps use move_count
+                            "steps": move_count
+                        }, elapsed_ms)
+                except Exception:
+                    # Don't let history errors break victory flow
+                    pass
             
             # Reset direction nếu không còn path để đi
             if not solving_path:
@@ -632,8 +671,34 @@ while running:
         # Draw star particles on top of everything
         draw_star_particles(screen)
 
+        # --- VẼ PREVIEW VÀNG (explored) nếu có ---
+        if preview_painted:
+            try:
+                for (pr, pc) in list(preview_painted):
+                    if 0 <= pr < maze_rows and 0 <= pc < maze_cols:
+                        # Nếu ô đã được tô (painted_tiles), không vẽ overlay preview vàng
+                        # để màu xanh của phi thuyền luôn ưu tiên hiển thị.
+                        try:
+                            if painted_tiles[pr][pc]:
+                                continue
+                        except Exception:
+                            # painted_tiles có thể chưa sẵn sàng; trong trường hợp đó vẽ như cũ
+                            pass
+                        screen_x = BOARD_X + pc * TILE_SIZE
+                        screen_y = BOARD_Y + pr * TILE_SIZE
+                        screen.blit(preview_surf, (screen_x, screen_y))
+            except Exception:
+                # fallback: vẽ preview như cũ nếu có lỗi
+                for (pr, pc) in list(preview_painted):
+                    if 0 <= pr < maze_rows and 0 <= pc < maze_cols:
+                        screen_x = BOARD_X + pc * TILE_SIZE
+                        screen_y = BOARD_Y + pr * TILE_SIZE
+                        screen.blit(preview_surf, (screen_x, screen_y))
+
         # UI Buttons with 3D cosmic style - chỉ hiển thị khi ở trạng thái game
         draw_button(screen, font_small, map_rect, DARK_BLUE, f"MAP: {map_names[current_map_index]}", "info")
+        # Edit button to the right of map button
+        draw_button(screen, font_small, edit_rect, (180, 80, 80), "EDIT" if not edit_mode else "EDIT:ON", "warning")
         draw_button(screen, font_small, player_rect, DARK_BLUE, algorithm, "info") 
         draw_button(screen, font_small, solver_rect, DARK_BLUE, "SOLVE", "primary")
         draw_button(screen, font_small, restart_rect, DARK_BLUE, "RESTART", "success")
@@ -713,6 +778,47 @@ while running:
             cosmic_selector.update()
             cosmic_selector.draw(screen)
 
+    # --- CẬP NHẬT ANIMATION PREVIEW (explored vàng) ---
+    if preview_running:
+        elapsed_s = dt / 1000.0
+        time_since_last_preview += elapsed_s
+        preview_elapsed_total += elapsed_s
+
+        # Reveal tile theo interval (dựa trên preview_tile_interval_run)
+        if time_since_last_preview >= preview_tile_interval_run:
+            time_since_last_preview -= preview_tile_interval_run
+            if preview_tiles:
+                nxt = preview_tiles.pop(0)
+                preview_painted.add(nxt)
+
+        # Khi đã reveal hết tiles, dừng preview và bắt đầu phi thuyền
+        if not preview_tiles:
+            preview_running = False
+            if pending_solving_path:
+                solving_path = pending_solving_path[:]
+            pending_solving_path = None
+
+    # Hiển thị thanh thông báo khi đang ở chế độ edit
+    if edit_mode:
+        try:
+            solvable = is_solvable_by_sliding(current_maze, tuple(player_pos))
+        except Exception:
+            solvable = False
+
+        comps = 0
+        if not solvable:
+            try:
+                comps = find_connected_components(current_maze)
+            except Exception:
+                comps = 0
+
+        # gọi hàm UI đã tách
+        render_edit_check_panel(screen, solvable, comps, player_pos,
+                            player_rect, speed_display_rect,
+                            BOARD_Y, TILE_SIZE, maze_rows, WINDOW_WIDTH,
+                            font_vn, font_mono)
+
+        
     pygame.display.flip()
     
 pygame.quit()

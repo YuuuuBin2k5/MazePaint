@@ -234,6 +234,3 @@ def ease_in_out_quart(t):
     else:
         return 1 - pow(-2 * t + 2, 4) / 2
 
-def ease_in_out_sine(t):
-    """Easing function mượt mà: dùng sine wave"""
-    return -(math.cos(math.pi * t) - 1) / 2

@@ -165,8 +165,6 @@ def draw_button_pressed(screen, font, rect, color, text=None, button_style="defa
         screen.blit(text_surf, text_rect)
 
 def draw_board(screen, maze, painted_tiles, player_pos, board_x, board_y, keys=None, logical_pos=None, auto_direction=None):
-   
-    
     rows = len(maze)
     cols = len(maze[0])
     
@@ -717,3 +715,152 @@ def add_completion_effect(screen, board_x, board_y, painted_tiles):
                 pulse_surf = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
                 pulse_surf.fill(pulse_color)
                 screen.blit(pulse_surf, rect)
+
+def render_text_outline(target_surf, text, font, pos, fg,
+                        outline_col=(6, 16, 26), outline_width=2, blend_add=False):
+    """
+    Vẽ text với outline đơn giản và hiệu ứng additive tùy chọn.
+    - target_surf: pygame.Surface để blit lên
+    - text: chuỗi
+    - font: pygame.font.Font
+    - pos: (x, y) tọa độ top-left của text
+    - fg: màu chính (tuple)
+    - outline_col: màu viền
+    - outline_width: bán kính viền (số pixel offsets)
+    - blend_add: nếu True, main text sẽ blit bằng BLEND_ADD (nhẹ neon)
+    """
+    x, y = pos
+    # Outline surface (render once)
+    outline_s = font.render(text, True, outline_col)
+    # Blit outline at offsets
+    for ox in range(-outline_width, outline_width + 1):
+        for oy in range(-outline_width, outline_width + 1):
+            if ox == 0 and oy == 0:
+                continue
+            target_surf.blit(outline_s, (x + ox, y + oy))
+    # Main text
+    main_s = font.render(text, True, fg)
+    if blend_add:
+        # slightly reduce alpha so additive doesn't blow out
+        main_s.set_alpha(220)
+        target_surf.blit(main_s, (x, y), special_flags=pygame.BLEND_ADD)
+    else:
+        target_surf.blit(main_s, (x, y))
+
+def render_edit_check_panel(screen, solvable, comps, player_pos,
+                            player_rect, speed_display_rect,
+                            board_y, tile_size, maze_rows, window_width,
+                            font_vn, font_mono):
+    """
+    Vẽ panel 'Kiểm tra map: PASS/FAIL' theo phong cách 3D máy móc.
+    Không thay đổi state, chỉ render.
+    """
+    # Layout ngang bằng nút Player nếu có
+    base_btn_w = player_rect.width if player_rect else 360
+    bar_w = int(base_btn_w)
+    bar_h = 72
+    gap = 12
+
+    ref_cx = speed_display_rect.centerx if speed_display_rect else window_width // 2
+    bar_x = int(ref_cx - bar_w // 2)
+    bar_x = max(12, min(bar_x, window_width - bar_w - 12))
+    bar_y = (speed_display_rect.bottom + gap) if speed_display_rect else 20
+
+    board_bottom = board_y + maze_rows * tile_size
+    if bar_y + bar_h > board_bottom - 8:
+        bar_y = max(8, board_bottom - bar_h - 8)
+
+    # Shadow nền
+    shadow = pygame.Surface((bar_w + 10, bar_h + 10), pygame.SRCALPHA)
+    pygame.draw.rect(shadow, (0, 0, 0, 180), shadow.get_rect(), border_radius=14)
+    screen.blit(shadow, (bar_x + 6, bar_y + 6))
+
+    # Extruded layers -> cảm giác 3D sâu
+    for d in range(5, 0, -1):
+        layer = pygame.Surface((bar_w, bar_h), pygame.SRCALPHA)
+        shade = 6 + d * 8
+        layer.fill((shade, shade + 6, shade + 14, 255))
+        pygame.draw.rect(layer, (shade + 34, shade + 56, shade + 74, 18),
+                         layer.get_rect(), 1, border_radius=12)
+        screen.blit(layer, (bar_x, bar_y + d))
+
+    # Top face (metallic + deep-blue neon)
+    top = pygame.Surface((bar_w, bar_h), pygame.SRCALPHA)
+    top_rect = top.get_rect()
+    for y in range(bar_h):
+        t = y / max(1, bar_h - 1)
+        r = int(4 * (1 - t) + 8 * t)
+        g = int(10 * (1 - t) + 80 * t)
+        b = int(20 * (1 - t) + 120 * t)
+        pygame.draw.line(top, (r, g, b, 240), (0, y), (bar_w, y))
+    # specular strip (muted)
+    spec_h = bar_h // 3
+    spec = pygame.Surface((bar_w - 20, spec_h), pygame.SRCALPHA)
+    for i in range(spec_h):
+        a = int(120 * (1 - i / max(1, spec_h - 1)) ** 2)
+        pygame.draw.line(spec, (40, 120, 160, a), (0, i), (spec.get_width(), i))
+    top.blit(spec, (10, 6), special_flags=pygame.BLEND_PREMULTIPLIED)
+
+    pygame.draw.rect(top, (80, 160, 190, 40), top_rect, 1, border_radius=12)
+    pygame.draw.rect(top, (6, 18, 34, 120), top_rect.inflate(-6, -6), 1, border_radius=10)
+
+    screen.blit(top, (bar_x, bar_y))
+
+    # Neon outer glow (subtle)
+    glow = pygame.Surface((bar_w + 28, bar_h + 28), pygame.SRCALPHA)
+    for i, a in enumerate((26, 14, 8)):
+        c = (12, 100, 170, a)
+        pygame.draw.rect(glow, c, pygame.Rect(8 - i, 8 - i, bar_w + 2 * i + 12, bar_h + 2 * i + 12),
+                         border_radius=14 - i)
+    screen.blit(glow, (bar_x - 12, bar_y - 12), special_flags=pygame.BLEND_ADD)
+
+    # Indicator: vòng tròn 3D, segmented + inner core
+    ring_size = 35
+    ring_x = bar_x + 26 - 20
+    ring_y = bar_y + (bar_h - ring_size) // 2
+    ring_surf = pygame.Surface((ring_size, ring_size), pygame.SRCALPHA)
+    cx, cy = ring_size // 2, ring_size // 2
+    outer_r = ring_size // 2 - 2
+    inner_r = outer_r - 10
+
+    pygame.draw.circle(ring_surf, (18, 44, 60), (cx, cy), outer_r + 2)
+    pygame.draw.circle(ring_surf, (28, 86, 110), (cx, cy), outer_r, 6)
+
+    seg_count = 10
+    for i in range(seg_count):
+        angle = i * (360 / seg_count)
+        v = pygame.math.Vector2(1, 0).rotate(angle)
+        tx = cx + int(v.x * (outer_r - 6))
+        ty = cy + int(v.y * (outer_r - 6))
+        color = (18, 140, 190) if solvable else (180, 70, 70)
+        pygame.draw.circle(ring_surf, color, (tx, ty), 3)
+
+    core_surf = pygame.Surface((inner_r * 2, inner_r * 2), pygame.SRCALPHA)
+    for i in range(inner_r, 0, -1):
+        a = int(120 * (1 - i / inner_r))
+        col = (22, 150, 130) if solvable else (190, 80, 80)
+        pygame.draw.circle(core_surf, (*col, a), (inner_r, inner_r), i)
+    pygame.draw.circle(core_surf, (6, 18, 24, 200), (inner_r, inner_r), max(2, inner_r // 3))
+
+    ring_surf.blit(core_surf, (cx - inner_r, cy - inner_r), special_flags=pygame.BLEND_PREMULTIPLIED)
+    pygame.draw.circle(ring_surf, (8, 28, 40, 180), (cx, cy), inner_r - 1, 1)
+    screen.blit(ring_surf, (ring_x, ring_y), special_flags=pygame.BLEND_ADD)
+
+    # Text: nổi bật, bevel + neon glow (không dùng trắng nguyên)
+    status_text = "Kiểm tra map: PASS" if solvable else "Kiểm tra map: FAIL"
+    # main color: tăng tương phản, không dùng trắng nguyên
+    main_col = (40, 230, 190) if solvable else (230, 120, 120)
+    outline_col = (6, 14, 22)
+    txt_x = ring_x + ring_size
+    txt_y = bar_y + (bar_h - font_vn.get_height()) // 2
+
+    # Render outlined text để tối ưu readability
+    render_text_outline(screen, status_text, font_vn, (txt_x, txt_y), main_col,
+                        outline_col=outline_col, outline_width=2, blend_add=False)
+    # nhẹ nhàng thêm một lớp neon mờ (không làm mờ chữ)
+    try:
+        neon = font_vn.render(status_text, True, (18, 110, 170))
+        neon.set_alpha(28)
+        screen.blit(neon, (txt_x + 1, txt_y + 1), special_flags=pygame.BLEND_ADD)
+    except Exception:
+        pass

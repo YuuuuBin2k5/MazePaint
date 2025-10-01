@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
-# spaceship_selector.py - Menu chọn phi thuyền
+"""Menu chọn phi thuyền.
+
+Di chuyển các imports an toàn lên đầu module; giữ lazy import chỉ khi cần.
+"""
 import pygame
 import math
 import os
+import random
 from config import *
 from font_manager import get_font_manager
 from config import SELECTED_SPACESHIP, set_selected_spaceship
@@ -200,7 +204,7 @@ class SpaceshipSelector:
     
     def init_background(self):
         """Khởi tạo background"""
-        import random
+        # random đã được import ở module-level
         self.background_stars = []
         random.seed(67890)
         for _ in range(100):

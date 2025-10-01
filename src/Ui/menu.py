@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
-# menu.py - Menu chính của game
+"""Menu chính của game (UI).
+
+Tập trung đặt imports lên đầu file; các import nội bộ chỉ giữ nếu thật sự cần.
+"""
 import pygame
 import math
+import random
 from config import *
 from font_manager import get_font_manager
 
@@ -39,7 +43,7 @@ class MainMenu:
     
     def init_background_stars(self):
         """Khởi tạo background stars"""
-        import random
+        # random đã được import ở module-level
         self.background_stars = []
         random.seed(12345)  # Fixed seed cho consistent stars
         for _ in range(150):

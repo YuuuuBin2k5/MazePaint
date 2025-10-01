@@ -1,8 +1,65 @@
 # -*- coding: utf-8 -*-
-# font_manager.py - Quản lý font tiếng Việt
+"""Quản lý font tiếng Việt và các helper render text.
+
+Đặt imports lên đầu file; giữ các xử lý render nâng cao ở đây.
+"""
+import math
 import pygame
-import os
-import sys
+from pathlib import Path
+
+_ASSET_DIR = Path(__file__).parent.parent / "assets" / "fonts"
+
+# Mapping logical names -> preferred system font names
+PREFERRED = {
+    "vn": ["Segoe UI", "Tahoma", "Arial"],
+    "mono": ["Consolas", "Courier New", "DejaVu Sans Mono"]
+}
+
+def _find_ttf(name_hint):
+    """Try find a TTF in assets/fonts that matches hint, else None."""
+    if not _ASSET_DIR.exists():
+        return None
+    for p in _ASSET_DIR.iterdir():
+        if p.suffix.lower() in (".ttf", ".otf") and name_hint.lower() in p.stem.lower():
+            return str(p)
+    # fallback: any ttf
+    for p in _ASSET_DIR.iterdir():
+        if p.suffix.lower() in (".ttf", ".otf"):
+            return str(p)
+    return None
+
+def get_font(kind="vn", size=18, bold=False):
+    """
+    Return a pygame.font.Font instance.
+    kind: 'vn' (ui), 'mono' (monospace) or any custom.
+    """
+    pygame.font.init()
+    # try bundled ttf first (matching kind)
+    ttf = _find_ttf(kind)
+    if ttf:
+        try:
+            f = pygame.font.Font(ttf, size)
+            f.set_bold(bold)
+            return f
+        except Exception:
+            pass
+    # try preferred system fonts
+    prefs = PREFERRED.get(kind, [])
+    for name in prefs:
+        try:
+            f = pygame.font.SysFont(name, size, bold=bold)
+            if f: 
+                return f
+        except Exception:
+            continue
+    # final fallback to default
+    return pygame.font.Font(None, size)
+
+# Module-level commonly used fonts (adjust sizes to taste)
+font_vn = get_font("vn", 22, bold=True)
+font_mono = get_font("mono", 16, bold=False)
+font_large = get_font("vn", 48, bold=True)
+font_small = get_font("vn", 20, bold=False)
 
 class FontManager:
     def __init__(self):
@@ -125,7 +182,6 @@ class FontManager:
                     glow_copy = glow_surface.copy()
                     glow_copy.set_alpha(alpha)
                     for angle in range(0, 360, 45):
-                        import math
                         dx = int(radius * math.cos(math.radians(angle)))
                         dy = int(radius * math.sin(math.radians(angle)))
                         final_surface.blit(glow_copy, (effect_padding + dx, effect_padding + dy))
