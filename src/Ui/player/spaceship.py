@@ -1,12 +1,25 @@
-# spaceship.py - Simple spaceship with rotation
 import pygame
 import math
 import random
 import sys
 import os
+
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from config import *
-from config import SELECTED_SPACESHIP, get_selected_spaceship
+
+# Config
+from config import (
+    SPACESHIP_SIZE,
+    SPACESHIP_STAR_PARTICLE_COUNT,
+    SPACESHIP_STAR_PARTICLE_LIFETIME,
+    SPACESHIP_STAR_PARTICLE_SPEED,
+    TILE_SIZE,
+    
+    
+    get_selected_spaceship,
+)
+
+# Asset Management - ✅ SỬA: manager → managers
+from manager.asset_manager import get_spaceship_for_player
 
 # Load spaceship image once at module level
 spaceship_image = None
@@ -18,35 +31,22 @@ def load_spaceship_image():
     global spaceship_image, spaceship_rotated_images
     
     if spaceship_image is None:
-        try:
-            # Load phi thuyền theo SELECTED_SPACESHIP (0-8)
-            ship_id = get_selected_spaceship() + 1  # Convert 0-8 to 1-9 để match với filename
-            spaceship_path = f"./asset/image/spaceship/ship_{ship_id}.svg"
-            spaceship_image = pygame.image.load(spaceship_path)
-        except Exception:
-            try:
-                # Fallback to default spaceship
-                spaceship_image = pygame.image.load("./asset/image/spaceship/ship_1.svg")
-            except:
-                try:
-                    # Create simple spaceship if no image found
-                    spaceship_image = create_simple_spaceship()
-                except Exception:
-                    spaceship_image = create_fallback_spaceship()
+        # Dùng helper function với size từ config
+        scaled_rotated = get_spaceship_for_player(size=SPACESHIP_SIZE, cache=True)
         
-        # Scale to appropriate size
-        size = 40  # Fixed size instead of PLAYER_RADIUS * 4
-        spaceship_image = pygame.transform.scale(spaceship_image, (size, size))
-        
-        # Pre-rotate images for each direction to avoid runtime rotation
-        spaceship_rotated_images = {
-            "up": pygame.transform.rotate(spaceship_image, 90),      # Default up
-            "right": pygame.transform.rotate(spaceship_image, 0), # Rotate 90° clockwise 
-            "down": pygame.transform.rotate(spaceship_image, -90),  # Rotate 180°
-            "left": pygame.transform.rotate(spaceship_image, 180),   # Rotate 90° counter-clockwise
-            None: spaceship_image  # Default orientation
-        }
-        
+        if scaled_rotated:
+            spaceship_rotated_images = scaled_rotated
+            spaceship_image = scaled_rotated[None]
+        else:
+            # Fallback
+            spaceship_image = create_simple_spaceship()
+            spaceship_rotated_images = {
+                'up': pygame.transform.rotate(spaceship_image, 90),
+                'down': pygame.transform.rotate(spaceship_image, -90),
+                'left': pygame.transform.rotate(spaceship_image, 180),
+                'right': spaceship_image,
+                None: spaceship_image
+            }
 
 def reload_spaceship():
     """Reload spaceship khi chọn phi thuyền mới"""
@@ -57,7 +57,7 @@ def reload_spaceship():
 
 def create_simple_spaceship():
     """Tạo spaceship đơn giản nếu không có ảnh"""
-    size = 40  # Fixed size instead of PLAYER_RADIUS * 4
+    size = SPACESHIP_SIZE  # ✅ DÙNG TỪ CONFIG
     surface = pygame.Surface((size, size), pygame.SRCALPHA)
     
     # Vẽ tam giác spaceship đơn giản
@@ -74,7 +74,7 @@ def create_simple_spaceship():
 
 def create_fallback_spaceship():
     """Tạo spaceship fallback đơn giản nhất"""
-    size = 40  # Fixed size instead of PLAYER_RADIUS * 4
+    size = SPACESHIP_SIZE  # ✅ DÙNG TỪ CONFIG
     surface = pygame.Surface((size, size), pygame.SRCALPHA)
     pygame.draw.circle(surface, (200, 200, 255), (size//2, size//2), size//3)
     return surface
@@ -86,7 +86,11 @@ class StarParticle:
         self.y = y + random.uniform(-5, 5)
         
         # Tốc độ particles ngược hướng di chuyển
-        base_speed = random.uniform(15, 25)
+        base_speed = random.uniform(
+            SPACESHIP_STAR_PARTICLE_SPEED * 5, 
+            SPACESHIP_STAR_PARTICLE_SPEED * 10
+        )  # ✅ DÙNG TỪ CONFIG
+        
         if direction == "up":
             self.vx = random.uniform(-5, 5)
             self.vy = base_speed
@@ -103,7 +107,10 @@ class StarParticle:
             self.vx = random.uniform(-10, 10)
             self.vy = random.uniform(-10, 10)
         
-        self.life = random.uniform(1.0, 2.0)
+        self.life = random.uniform(
+            SPACESHIP_STAR_PARTICLE_LIFETIME * 0.05, 
+            SPACESHIP_STAR_PARTICLE_LIFETIME * 0.1
+        )  # ✅ DÙNG TỪ CONFIG (chuyển frames → seconds)
         self.max_life = self.life
         self.size = random.uniform(3, 6)
         self.color = (255, 255, 255)  # Trắng đơn giản
@@ -141,9 +148,13 @@ class StarParticle:
 # Global particles list
 star_particles = []
 
-def add_star_particles(x, y, direction, count=3):
+def add_star_particles(x, y, direction, count=None):
     """Thêm các particles vì sao"""
     global star_particles
+    
+    if count is None:
+        count = SPACESHIP_STAR_PARTICLE_COUNT // 3  # ✅ DÙNG TỪ CONFIG
+    
     for _ in range(count):
         star_particles.append(StarParticle(x, y, direction))
 
@@ -224,7 +235,6 @@ def draw_static_spaceship(screen, center_x, center_y):
 def draw_animated_spaceship(screen, center_x, center_y):
     """Draw spaceship - same as static for simplicity"""
     draw_spaceship_player(screen, center_x, center_y)
-
 
 # Easing functions for smooth movement
 def ease_in_out_quart(t):

@@ -8,7 +8,7 @@ import math
 import os
 import random
 from config import *
-from font_manager import get_font_manager
+from manager.font_manager import get_font_manager
 from config import SELECTED_SPACESHIP, set_selected_spaceship
 
 class SpaceshipSelector:
@@ -16,7 +16,7 @@ class SpaceshipSelector:
         self.width = width
         self.height = height
         self.center_x = width // 2
-        self.center_y = height // 2
+        self.center_y = (height + HEADER_HEIGHT) // 2  # Adjusted for header height
         
         # Animation
         self.frame = 0
@@ -254,8 +254,8 @@ class SpaceshipSelector:
             if event.button == 1:  # Left click
                 mouse_x, mouse_y = pygame.mouse.get_pos()
                 
-                # Check back button
-                back_rect = pygame.Rect(20, 20, 100, 30)
+                # Check back button - adjusted for header
+                back_rect = pygame.Rect(20, 65, 100, 30)  # 20 + HEADER_HEIGHT
                 if back_rect.collidepoint(mouse_x, mouse_y):
                     return "BACK_TO_MENU"
                 
@@ -301,9 +301,9 @@ class SpaceshipSelector:
     
     def draw(self, screen):
         """Vẽ spaceship selector"""
-        # 1. Background gradient
-        for y in range(self.height):
-            ratio = y / self.height
+        # 1. Background gradient - VẼ TỪ HEADER_HEIGHT TRỞ XUỐNG
+        for y in range(HEADER_HEIGHT, self.height):
+            ratio = (y - HEADER_HEIGHT) / (self.height - HEADER_HEIGHT)
             r = int(8 + ratio * 12)
             g = int(8 + ratio * 18) 
             b = int(25 + ratio * 30)
@@ -323,11 +323,11 @@ class SpaceshipSelector:
         title_surface = self.font_manager.render_text(title_text, 60, title_color, 
                                                      bold=True, shadow=True, glow=True)
         if title_surface:
-            title_rect = title_surface.get_rect(center=(self.center_x, 60))
+            title_rect = title_surface.get_rect(center=(self.center_x, 105))  # 60 + HEADER_HEIGHT
             screen.blit(title_surface, title_rect)
         
-        # 4. Back button với hiệu ứng
-        back_rect = pygame.Rect(20, 20, 100, 30)
+        # 4. Back button với hiệu ứng - adjusted for header
+        back_rect = pygame.Rect(20, 65, 100, 30)  # 20 + HEADER_HEIGHT
         mouse_pos = pygame.mouse.get_pos()
         is_hover = back_rect.collidepoint(mouse_pos)
         

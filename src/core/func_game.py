@@ -20,14 +20,17 @@ import tkinter as tk
 
 from config import DIALOG_PADX, DIALOG_PADY
 from config import *
-from maps import *
+from data.maps import *
 
 # Solver imports (kept here to avoid circular import when possible)
-from Algorithm.BFS import bfs_solve
-from Algorithm.DFS import dfs_solve
-from Algorithm.UCS import ucs_solve
-from Algorithm.Greedy import greedy_solve
-from Algorithm.Astar import astar_solve
+from data.algorithm.BFS import bfs_solve
+from data.algorithm.DFS import dfs_solve
+from data.algorithm.UCS import ucs_solve
+from data.algorithm.Greedy import greedy_solve
+from data.algorithm.Astar import astar_solve
+from manager import sound_manager
+from Ui.widgets.cosmic_selector import cosmic_algorithm_selector
+
 
 # === MODULE-LEVEL CONSTANTS / QUEUE CONFIG ==================================
 # Movement queue configuration
@@ -127,9 +130,6 @@ def ask_algorithm_cosmic():
     Try using the in-game cosmic selector (preferred).
     Fallback to tkinter dialog on error.
     """
-    import pygame
-    from Ui.cosmic_selector import cosmic_algorithm_selector
-
     try:
         screen = pygame.display.get_surface()
         clock = pygame.time.Clock()
@@ -204,18 +204,22 @@ def get_initial_state():
         "pending_solving_path": None,
         "victory_frame": 0,
         "victory_phase3_sound_played": False,
+        "is_solving": False,
+        "solving_start_time": 0,
     }
 
 def reset_game(current_map_index, all_maps):
     """
-    Reset game state for a given map index.
-    Returns a state dict that main.py can apply (via apply_state).
+    Reset game state for current map.
+    Returns a dict of state variables.
     """
+    # Tạo deep copy để tránh thay đổi all_maps
+    current_maze = copy.deepcopy(all_maps[list(all_maps.keys())[current_map_index]])
+    
     state = {}
-    map_names = list(all_maps.keys())
-    state['current_maze'] = copy.deepcopy(all_maps[map_names[current_map_index]])
-    state['maze_rows'] = len(state['current_maze'])
-    state['maze_cols'] = len(state['current_maze'][0])
+    state['current_maze'] = current_maze
+    state['maze_rows'] = len(current_maze)
+    state['maze_cols'] = len(current_maze[0])
 
     state['player_pos'] = [1, 1]
     state['player_visual_pos'] = [1, 1]
@@ -243,12 +247,16 @@ def reset_game(current_map_index, all_maps):
     state['pending_solving_path'] = None
     state['time_since_last_preview'] = 0.0
     state['preview_elapsed_total'] = 0.0
+    
+    # Loading state reset
+    state['is_solving'] = False
+    state['solving_start_time'] = 0
 
     clear_movement_queue()
     return state
 
 # === HISTORY / RESULT RECORDING ===========================================
-def add_to_history(history_groups, algorithm, current_maze, result, execution_time):
+def add_to_history(history_groups, algorithm, current_maze, result, execution_time, heuristic_info=None):
     """
     Append solver result to history_groups.
     Accepts different key names used by solvers (visited, visited_count, states, generated_count).
@@ -266,7 +274,8 @@ def add_to_history(history_groups, algorithm, current_maze, result, execution_ti
         'steps': steps,
         'visited_count': visited,
         'generated_count': generated,
-        'execution_time': round(execution_time, 2) if execution_time is not None else 0.0
+        'execution_time': round(execution_time, 2) if execution_time is not None else 0.0,
+        'heuristic_info': heuristic_info
     }
     history_groups[state_tuple]['results'].append(new_result)
     return history_groups
@@ -274,91 +283,155 @@ def add_to_history(history_groups, algorithm, current_maze, result, execution_ti
 # === SOLVER WRAPPER / PREVIEW PROCESSING ==================================
 def solve_maze(algorithm, current_maze, player_pos, history_groups):
     """
-    Run selected solver and normalize its output for main:
-    - path_result: dict with keys 'solving_path', 'preview_tiles', 'pending_solving_path'
-    - history_groups updated with add_to_history (execution time in ms)
+    Giải maze bằng thuật toán được chọn
     """
-    # Parse algorithm name to extract heuristic
-    base_algorithm = algorithm
-    heuristic_type = None
-    
-    if "_" in algorithm:
-        parts = algorithm.split("_", 1)
-        base_algorithm = parts[0]
-        heuristic_type = parts[1]
-    
-    solvers = {
-        "BFS": bfs_solve, "DFS": dfs_solve, "UCS": ucs_solve,
-        "Greedy": greedy_solve, "Astar": astar_solve
-    }
-
-    path_result = {"solving_path": None, "preview_tiles": [], "pending_solving_path": None}
-    if base_algorithm not in solvers:
-        return path_result, history_groups
-
     start_time = time.time()
-    try:
-        if heuristic_type and base_algorithm in ["Greedy", "Astar"]:
-            # Pass heuristic to solver
-            result = solvers[base_algorithm](current_maze, player_pos, heuristic_type)
-        else:
-            result = solvers[base_algorithm](current_maze, player_pos)
-    except Exception as e:
-        print(f"⚠️ Error running solver {algorithm}: {e}")
-        result = None
+    result = None
     
-    execution_time_ms = (time.time() - start_time) * 1000.0
-
-    if result and "path" in result:
-        explored = result.get("explored")
-        if explored:
-            if isinstance(explored, dict):
-                seq = []
-                for k in sorted(explored.keys()):
-                    seq.extend(explored[k])
-                seen = set()
-                preview = []
-                for t in seq:
-                    if t not in seen:
-                        preview.append(t)
-                        seen.add(t)
-            else:
-                preview = list(explored)
-            path_result["preview_tiles"] = preview
-            path_result["pending_solving_path"] = result["path"][:] if result["path"] else []
-        else:
-            path_result["solving_path"] = result["path"][:] if result.get("path") else []
-
-        history_groups = add_to_history(history_groups, algorithm, current_maze, result, execution_time_ms)
+    
+    # THÊM: Parse algorithm name và heuristic type
+    base_algorithm = algorithm.split("_")[0] if "_" in algorithm else algorithm
+    heuristic_type = "not_done"  # Default
+    heuristic_info = None  # Thông tin để hiển thị trong history
+    
+    # Parse heuristic index nếu có (format: "Greedy_[2]" hoặc "Astar_[1]")
+    if "_[" in algorithm and "]" in algorithm:
+        try:
+            heuristic_index = int(algorithm.split("[")[1].split("]")[0])
+            # Map index to heuristic type names - PHẢI KHỚP với cosmic_selector
+            heuristic_types = {1: "not_done", 2: "unpainted_count", 3:"line_count"}
+            if heuristic_index in heuristic_types:
+                heuristic_type = heuristic_types[heuristic_index]
+                # Map heuristic names for display
+                heuristic_display_names = {
+                    "not_done": "Not Done",
+                    "unpainted_count": "Unpainted Count", 
+                    "line_count": "Line Count"
+                }
+                heuristic_info = heuristic_display_names.get(heuristic_type, heuristic_type)
+        except Exception as e:
+            print(f"DEBUG func_game - Error parsing heuristic: {e}")
+    
+    # Xác định heuristic info cho các thuật toán
+    if base_algorithm in ["Greedy", "Astar"]:
+        if heuristic_info is None:
+            heuristic_info = "h1 (Not Done)"  # Default heuristic
     else:
-        history_groups = add_to_history(history_groups, algorithm, current_maze, {"path": []}, execution_time_ms)
-
-    return path_result, history_groups
+        heuristic_info = "X"  # Không có heuristic
+    
+    # Gọi thuật toán
+    if base_algorithm == "BFS":
+        result = bfs_solve(current_maze, player_pos)
+    elif base_algorithm == "DFS":
+        # DFS bình thường - stable version
+        result = dfs_solve(current_maze, player_pos)
+    elif base_algorithm == "UCS":
+        result = ucs_solve(current_maze, player_pos)
+    elif base_algorithm == "Greedy":
+        result = greedy_solve(current_maze, player_pos, heuristic_type)
+    elif base_algorithm == "Astar":
+        result = astar_solve(current_maze, player_pos, heuristic_type)
+    else:
+        return {
+            "solving_path": None,
+            "pending_solving_path": None,
+            "preview_tiles": [],
+            "explored": None
+        }, history_groups
+    
+    if not result:
+        return {
+            "solving_path": None,
+            "pending_solving_path": None,
+            "preview_tiles": [],
+            "explored": None
+        }, history_groups
+    
+    
+    # Lấy path
+    directions = result.get("path", [])
+    
+    # Lấy explored - QUAN TRỌNG
+    explored = result.get("explored")
+    
+    # GIỚI HẠN explored
+    MAX_PREVIEW_STEPS = 300
+    if explored and len(explored) > MAX_PREVIEW_STEPS:
+        step_keys = sorted(explored.keys())
+        step_interval = len(step_keys) // MAX_PREVIEW_STEPS
+        sampled_explored = {}
+        for i, key in enumerate(step_keys[::max(1, step_interval)]):
+            sampled_explored[i] = explored[key]
+        explored = sampled_explored
+    
+    # Tính preview_tiles
+    preview_tiles = []
+    if explored:
+        for step in sorted(explored.keys()):
+            if explored[step]:
+                for tile in explored[step]:
+                    if isinstance(tile, (list, tuple)) and len(tile) >= 2:
+                        preview_tiles.append((tile[0], tile[1]))
+    
+    # Lưu history
+    elapsed_ms = (time.time() - start_time) * 1000
+    try:
+        history_groups = add_to_history(history_groups, algorithm, current_maze, result, elapsed_ms, heuristic_info)
+    except Exception as e:
+        print(f"Warning: Failed to add to history: {e}")
+    
+    return {
+        "solving_path": directions,
+        "pending_solving_path": directions,
+        "preview_tiles": preview_tiles,
+        "explored": explored
+    }, history_groups
 
 # === MAP IO ================================================================
 def save_current_map_to_file(current_map_index, current_maze):
-    """Save current map to src/maps_data/map_X.txt (X = 0..7)."""
+    """
+    Save current map to src/data/maps_data/map_X.txt (X = 0..7).
+    Returns True if successful, False otherwise.
+    """
     words = ['0', '1', '2', '3', '4', '5', '6', '7']
+    
+    # Validate map index
     try:
         idx = int(current_map_index)
-    except Exception:
-        print(f"⚠️ Invalid current_map_index (not int): {current_map_index}")
-        return
+    except (ValueError, TypeError) as e:
+        return False
 
-    if 0 <= idx < len(words):
-        fname = f"map_{words[idx]}.txt"
-        # write into src/maps_data (same folder maps.py reads from)
-        p = Path(__file__).parent / "maps_data" / fname
-        try:
-            # Ensure target directory exists (creates src/maps_data if missing)
-            p.parent.mkdir(parents=True, exist_ok=True)
-            with p.open('w', encoding='utf-8') as f:
-                for row in current_maze:
-                    f.write(' '.join(str(int(v)) for v in row) + "\n")
-        except Exception as e:
-            print(f"⚠️ Failed to save map to {p}: {e}")
-    else:
-        print(f"⚠️ Invalid current_map_index: {current_map_index}")
+    if not (0 <= idx < len(words)):
+        return False
+    
+    # Validate maze data
+    if not current_maze or not isinstance(current_maze, (list, tuple)):
+        return False
+    
+    fname = f"map_{words[idx]}.txt"
+    # write into src/data/maps_data (same folder maps.py reads from)
+    p = Path("src") / "data" / "maps_data" / fname
+
+    try:
+        # Ensure target directory exists (creates src/data/maps_data if missing)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Write maze data
+        with p.open('w', encoding='utf-8') as f:
+            for i, row in enumerate(current_maze):
+                if not isinstance(row, (list, tuple)):
+                    return False
+                line = ' '.join(str(int(v)) for v in row)
+                f.write(line + "\n")
+        
+        # Verify file was written
+        if p.exists() and p.stat().st_size > 0:
+            return True
+        else:
+            return False
+    except Exception as e:
+        print(f"⚠️ Failed to save map to {p}: {e}")
+        return False
 
 # === MAIN MODULE INTERACTION HELPERS ======================================
 def apply_state(state):
@@ -405,3 +478,44 @@ def update_preview_interval():
             main_mod.preview_tile_interval_run = getattr(main_mod, "PREVIEW_TILE_INTERVAL", 0.03)
         except Exception:
             pass
+
+# === FUNCTIONS ===
+def solve_in_background(algorithm, current_maze, player_pos, history_groups):
+    """
+    Chạy thuật toán solving trong background thread
+    """
+    import sys
+    main_mod = sys.modules.get("__main__")
+    
+    try:
+        result = solve_maze(algorithm, current_maze, player_pos, history_groups)
+        if main_mod:
+            main_mod.solving_result = result
+            main_mod.solving_result_ready = True
+    except Exception as e:
+        print(f"Error in background solving: {e}")
+        if main_mod:
+            main_mod.solving_result = None
+            main_mod.solving_result_ready = True
+
+# === HELPER FUNCTIONS ===
+def save_and_exit_edit_mode():
+    """Save current map and exit edit mode"""
+    main_mod = sys.modules.get("__main__")
+    if not main_mod:
+        return
+    
+    if getattr(main_mod, 'edit_mode', False):
+        current_map_index = getattr(main_mod, 'current_map_index', 0)
+        current_maze = getattr(main_mod, 'current_maze', [])
+        all_maps = getattr(main_mod, 'all_maps', {})
+        map_names = getattr(main_mod, 'map_names', [])
+        
+        success = save_current_map_to_file(current_map_index, current_maze)
+        if success and map_names and current_map_index < len(map_names):
+            all_maps[map_names[current_map_index]] = copy.deepcopy(current_maze)
+            sound_manager.play_button_sound()
+        
+        # Set variables back to main module
+        main_mod.edit_mode = False
+        main_mod.edit_pending_save = False

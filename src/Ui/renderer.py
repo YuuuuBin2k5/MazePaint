@@ -1,4 +1,12 @@
-# ui.py
+"""
+MÔ TẢ: 
+Tệp này xử lý việc vẽ giao diện và hiệu ứng đồ họa cho trò chơi, bao gồm:
+- Hiệu ứng nền (sao, hành tinh).
+- Vẽ bảng mê cung, vết di chuyển, và tàu vũ trụ.
+- Các thành phần UI (nút, bảng thông tin, loading).
+- Hiệu ứng hoàn thành và hoạt ảnh.
+"""
+
 import math
 import random
 import pygame
@@ -7,12 +15,31 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from config import *
 import time
-from .spaceship import *
-from .wall import asteroid_wall_3d_renderer
-from .victory import draw_cosmic_victory
+from .player.spaceship import *
+from .components.wall import asteroid_wall_3d_renderer
+from .animations.victory import draw_cosmic_victory
  
-# Background elements - Các thành phần nền
+# Background elements - Các yếu tố nền
+# Tạo ngẫu nhiên các ngôi sao
+stars_far = [[random.randint(0, WINDOW_WIDTH), random.randint(0, WINDOW_HEIGHT)] for _ in range(STARS_FAR_COUNT)]
+stars_mid = [[random.randint(0, WINDOW_WIDTH), random.randint(0, WINDOW_HEIGHT)] for _ in range(STARS_MID_COUNT)]
+stars_near = [[random.randint(0, WINDOW_WIDTH), random.randint(0, WINDOW_HEIGHT)] for _ in range(STARS_NEAR_COUNT)]
 
+# Hành tinh
+planet_imgs = []
+planets = []
+
+# Planet wave system - Hệ thống sóng hành tinh có trật tự
+planet_wave_queue = []  # Hàng đợi các hành tinh sẽ spawn
+planet_wave_active = False  # Có đang trong wave không
+planet_spawn_delay = 0  # Delay giữa các hành tinh trong wave
+planet_wave_cooldown = 0  # Thời gian nghỉ giữa các wave
+
+# Trail system - Hệ thống vết di chuyển
+player_trail = []  # Lưu các vị trí gần đây của player
+max_trail_length = MAX_TRAIL_LENGTH  # Sử dụng từ config
+
+# --- HÀM TRỢ GIÚP CHUNG ---
 def get_movement_direction(keys):
     """Xác định hướng di chuyển từ phím bấm"""
     if not keys:
@@ -29,25 +56,6 @@ def get_movement_direction(keys):
         return "right"
     
     return None
-stars_far = [[random.randint(0, WINDOW_WIDTH), random.randint(0, WINDOW_HEIGHT)] for _ in range(50)]
-stars_mid = [[random.randint(0, WINDOW_WIDTH), random.randint(0, WINDOW_HEIGHT)] for _ in range(40)]
-stars_near = [[random.randint(0, WINDOW_WIDTH), random.randint(0, WINDOW_HEIGHT)] for _ in range(30)]
-
-# Hành tinh
-planet_imgs = []
-planets = []
-
-# Planet wave system - Hệ thống sóng hành tinh có trật tự
-planet_wave_queue = []  # Hàng đợi các hành tinh sẽ spawn
-planet_wave_active = False  # Có đang trong wave không
-planet_spawn_delay = 0  # Delay giữa các hành tinh trong wave
-planet_wave_cooldown = 0  # Thời gian nghỉ giữa các wave
-
-# Trail system - Hệ thống vết di chuyển
-player_trail = []  # Lưu các vị trí gần đây của player
-max_trail_length = MAX_TRAIL_LENGTH  # Sử dụng từ config
-# ============================================================================
-
 
 def render_text_with_outline(text, font, text_color, outline_color, outline_width=TEXT_OUTLINE_WIDTH):
     base = font.render(text, True, text_color)
@@ -235,7 +243,8 @@ def draw_board(screen, maze, painted_tiles, player_pos, board_x, board_y, keys=N
     draw_spaceship_player(screen, center_x, center_y, direction)
 
 def draw_history_box(screen, font, history_list):
-    box_rect = pygame.Rect(840, 100, 240, 200)
+    # Adjusted for header - moved down by HEADER_HEIGHT (45px)
+    box_rect = pygame.Rect(840, 145, 240, 200)  # 100 + 45
     pygame.draw.rect(screen, DARK_BLUE, box_rect, border_radius=8)
     pygame.draw.rect(screen, BLACK, box_rect, 2, border_radius=8)
     
@@ -313,7 +322,7 @@ def flat_to_matrix(flat_list, rows, cols):
             else:
                 row.append(0)
         matrix.append(row)
-    return matrix
+        return matrix
 
 def draw_matrix(screen, matrix, x, y, cell_width, cell_height, fonts, colors, tiles):
     """Vẽ matrix mini maze với tường giống game thật"""
@@ -360,7 +369,8 @@ def draw_history_panel(screen, history_groups, scroll_offset, panel_rect, close_
         "steps": table_x_start + 200,
         "visited": table_x_start + 280,
         "generated": table_x_start + 380,
-        "time": table_x_start + 500,
+        "time": table_x_start + 510,
+        "heuristic": table_x_start + 640,
     }
 
     # Vẽ dòng tiêu đề của bảng
@@ -369,6 +379,7 @@ def draw_history_panel(screen, history_groups, scroll_offset, panel_rect, close_
     draw_text_outline(screen, "Visited", (col_x["visited"], header_y), colors['white'], colors['black'], 1, font=fonts['btn'])
     draw_text_outline(screen, "Generated", (col_x["generated"], header_y), colors['white'], colors['black'], 1, font=fonts['btn'])
     draw_text_outline(screen, "Time (ms)", (col_x["time"], header_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+    draw_text_outline(screen, "Heuristic", (col_x["heuristic"], header_y), colors['white'], colors['black'], 1, font=fonts['btn'])
 
     # Vẽ đường kẻ ngang dưới tiêu đề
     pygame.draw.line(screen, colors['border'], (panel_rect.x + 20, header_y + 25), (panel_rect.right - 20, header_y + 25), 2)
@@ -426,13 +437,22 @@ def draw_history_panel(screen, history_groups, scroll_offset, panel_rect, close_
                     draw_text_outline(screen, str(result.get('visited_count', result.get('visited', 'N/A'))), (col_x["visited"], row_y), colors['white'], colors['black'], 1, font=fonts['btn'])
                     draw_text_outline(screen, str(result.get('generated_count', result.get('states', 'N/A'))), (col_x["generated"], row_y), colors['white'], colors['black'], 1, font=fonts['btn'])
 
-                    # Chuyển đổi giây sang mili giây (* 1000) và làm tròn
-                    exec_time = result.get('execution_time', result.get('time', 0.0))
-                    time_ms = exec_time * 1000
+                    # execution_time đã được lưu bằng ms, time là giây - cần xử lý khác nhau
+                    exec_time = result.get('execution_time')
+                    if exec_time is not None:
+                        # execution_time đã là ms từ func_game.py
+                        time_ms = exec_time
+                    else:
+                        # Fallback: time từ algorithm (giây) -> chuyển sang ms
+                        time_seconds = result.get('time', 0.0)
+                        time_ms = time_seconds * 1000
                     draw_text_outline(screen, f"{time_ms:.1f}", (col_x["time"], row_y), colors['white'], colors['black'], 1, font=fonts['btn'])
+                    
+                    # Hiển thị heuristic info
+                    heuristic_info = result.get('heuristic_info', 'X')
+                    draw_text_outline(screen, str(heuristic_info), (col_x["heuristic"], row_y), colors['white'], colors['black'], 1, font=fonts['btn'])
 
             y_cursor += group_height
-
     screen.set_clip(None)
 
 #===========================================================================
@@ -650,27 +670,23 @@ def update_player_trail(player_pos, board_x, board_y):
     """
     global player_trail
     
-    # Tính tọa độ pixel của player
     pixel_pos = [
         board_x + player_pos[1] * TILE_SIZE + TILE_SIZE // 2,
         board_y + player_pos[0] * TILE_SIZE + TILE_SIZE // 2
     ]
     
-    # Thêm vị trí mới vào trail
     player_trail.append({
         'pos': pixel_pos,
-        'alpha': 255,  # Độ trong suốt ban đầu
+        'alpha': TRAIL_ALPHA_START,  # ✅ SỬA: Dùng từ config
         'size': PLAYER_RADIUS
     })
     
-    # Giới hạn độ dài trail
     if len(player_trail) > max_trail_length:
         player_trail.pop(0)
     
-    # Cập nhật alpha và size của các trail cũ
-    for i, trail in enumerate(player_trail[:-1]):  # Không cập nhật trail cuối (mới nhất)
-        trail['alpha'] = max(0, trail['alpha'] - 50)  # Giảm độ sáng
-        trail['size'] = max(2, trail['size'] - 2)     # Giảm kích thước
+    for i, trail in enumerate(player_trail[:-1]):
+        trail['alpha'] = max(0, trail['alpha'] - TRAIL_ALPHA_DECAY)  # ✅ SỬA: Dùng từ config
+        trail['size'] = max(2, trail['size'] - 2)
 
 def draw_player_trail(screen):
     """
@@ -747,7 +763,6 @@ def render_text_outline(target_surf, text, font, pos, fg,
     else:
         target_surf.blit(main_s, (x, y))
 
-# Sửa đổi: Thêm num_components vào danh sách tham số
 def render_edit_check_panel(screen, num_components,
                             player_rect, speed_display_rect,
                             board_y, tile_size, maze_rows, window_width,
@@ -810,7 +825,6 @@ def render_edit_check_panel(screen, num_components,
     
     screen.blit(text_surf, text_rect)
 
-# --- HÀM TRỢ GIÚP MỚI ---
 def render_text_outline_new(text, font, text_color, outline_color, width):
     """
     Render một Surface chứa chữ có viền.
@@ -831,3 +845,68 @@ def render_text_outline_new(text, font, text_color, outline_color, width):
     # Vẽ chữ chính ở giữa
     text_surf.blit(base_text, (width, width))
     return text_surf
+
+def draw_loading_screen(screen, solving_start_time, fonts, colors):
+    """
+    Vẽ màn hình loading với hiệu ứng loading animation
+    """
+    # Tính thời gian đã trôi qua
+    elapsed_time = time.time() - solving_start_time
+    
+    # Tạo overlay mờ
+    overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
+    overlay.set_alpha(180)  # Độ trong suốt
+    overlay.fill((0, 0, 20))  # Màu tối
+    screen.blit(overlay, (0, 0))
+    
+    # Vị trí trung tâm
+    center_x, center_y = WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2
+    
+    # Vẽ text "Solving..."
+    loading_text = "Solving"
+    
+    # Animation cho dấu chấm
+    dots_count = int(elapsed_time * 2) % 4  # Chu kỳ 2 giây, 4 trạng thái (0,1,2,3 dots)
+    dots = "." * dots_count
+    full_text = loading_text + dots
+    
+    # Vẽ text với outline
+    draw_text_outline(screen, full_text, (center_x, center_y - 50), 
+                     colors['white'], colors['black'], 3, center=True, font=fonts['title'])
+    
+    # Vẽ vòng tròn loading quay
+    circle_radius = 30
+    num_dots = 8
+    dot_radius = 4
+    
+    for i in range(num_dots):
+        angle = (i * 2 * math.pi / num_dots) + (elapsed_time * 3)  # Quay với tốc độ 3 rad/s
+        
+        # Tính vị trí của từng dot
+        dot_x = center_x + circle_radius * math.cos(angle)
+        dot_y = center_y + 20 + circle_radius * math.sin(angle)
+        
+        # Fade effect - dots phía trước sáng hơn
+        alpha = int(255 * (0.3 + 0.7 * ((i + elapsed_time * 4) % num_dots) / num_dots))
+        
+        # Tạo màu với alpha
+        dot_color = (*colors['white'][:3], alpha) if len(colors['white']) == 4 else colors['white']
+        
+        # Vẽ dot với hiệu ứng glow
+        pygame.draw.circle(screen, dot_color, (int(dot_x), int(dot_y)), dot_radius)
+        # Vẽ glow effect
+        pygame.draw.circle(screen, (*colors['white'][:3], alpha//3), (int(dot_x), int(dot_y)), dot_radius + 2)
+    
+    # Vẽ progress bar giả (aesthetic)
+    bar_width = 200
+    bar_height = 6
+    bar_x = center_x - bar_width // 2
+    bar_y = center_y + 80
+    
+    # Background bar
+    pygame.draw.rect(screen, (50, 50, 50), (bar_x, bar_y, bar_width, bar_height), border_radius=3)
+    
+    # Progress bar với animation
+    progress = (math.sin(elapsed_time * 1.5) + 1) / 2 * 0.8 + 0.1  # Giá trị từ 0.1 đến 0.9
+    progress_width = int(bar_width * progress)
+    pygame.draw.rect(screen, colors['white'], (bar_x, bar_y, progress_width, bar_height), border_radius=3)

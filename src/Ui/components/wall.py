@@ -1,13 +1,23 @@
-# asteroid_walls_3d.py
+# -*- coding: utf-8 -*-
+"""
+Wall Rendering Component - Asteroid 3D walls
+"""
 import pygame
 import random
 import math
-from config import *
+
+from config import (
+    ASTEROID_TYPES,
+    ASTEROID_TEXTURE_DENSITY,
+    ASTEROID_HIGHLIGHT_OFFSET,
+)
 
 class AsteroidWall3D:
+    """3D Asteroid wall renderer với nhiều loại asteroid"""
+    
     def __init__(self):
         self.wall_cache = {}
-        self.asteroid_types = ["crystalline", "metallic", "volcanic", "normal"]
+        self.asteroid_types = ASTEROID_TYPES  # ✅ DÙNG TỪ CONFIG
     
     def create_asteroid_wall_tile(self, tile_size, asteroid_type="normal"):
         """Tạo texture asteroid wall 3D cho một ô"""
@@ -38,8 +48,8 @@ class AsteroidWall3D:
                 b = int(base_color[2] * brightness)
                 surface.set_at((x, y), (r, g, b))
         
-        # Thêm texture asteroid (bụi + đá nhỏ)
-        for _ in range(20):
+        # Thêm texture asteroid (bụi + đá nhỏ) - ✅ DÙNG CONFIG
+        for _ in range(ASTEROID_TEXTURE_DENSITY):
             x = random.randint(2, tile_size - 3)
             y = random.randint(2, tile_size - 3)
             size = random.randint(1, 3)
@@ -51,23 +61,23 @@ class AsteroidWall3D:
             )
             pygame.draw.circle(surface, color, (x, y), size)
 
-        # Viền highlight (trên + trái)
+        # Viền highlight (trên + trái) - ✅ DÙNG CONFIG
         highlight = (
-            min(255, base_color[0] + 40),
-            min(255, base_color[1] + 40),
-            min(255, base_color[2] + 40)
+            min(255, base_color[0] + ASTEROID_HIGHLIGHT_OFFSET),
+            min(255, base_color[1] + ASTEROID_HIGHLIGHT_OFFSET),
+            min(255, base_color[2] + ASTEROID_HIGHLIGHT_OFFSET)
         )
-        pygame.draw.line(surface, highlight, (0,0), (tile_size-1,0))     # top
-        pygame.draw.line(surface, highlight, (0,0), (0,tile_size-1))     # left
+        pygame.draw.line(surface, highlight, (0, 0), (tile_size - 1, 0))     # top
+        pygame.draw.line(surface, highlight, (0, 0), (0, tile_size - 1))     # left
 
-        # Viền shadow (dưới + phải)
+        # Viền shadow (dưới + phải) - ✅ DÙNG CONFIG
         shadow = (
-            max(0, base_color[0] - 40),
-            max(0, base_color[1] - 40),
-            max(0, base_color[2] - 40)
+            max(0, base_color[0] - ASTEROID_HIGHLIGHT_OFFSET),
+            max(0, base_color[1] - ASTEROID_HIGHLIGHT_OFFSET),
+            max(0, base_color[2] - ASTEROID_HIGHLIGHT_OFFSET)
         )
-        pygame.draw.line(surface, shadow, (tile_size-1,0), (tile_size-1,tile_size-1)) # right
-        pygame.draw.line(surface, shadow, (0,tile_size-1), (tile_size-1,tile_size-1)) # bottom
+        pygame.draw.line(surface, shadow, (tile_size - 1, 0), (tile_size - 1, tile_size - 1))  # right
+        pygame.draw.line(surface, shadow, (0, tile_size - 1), (tile_size - 1, tile_size - 1))  # bottom
         
         self.wall_cache[(tile_size, asteroid_type)] = surface
         return surface

@@ -1,4 +1,3 @@
-# func_algorithm.py
 import math
 import collections
 from config import MAZE_ROWS, MAZE_COLS, PATH
@@ -38,7 +37,7 @@ def simulate_move(start_pos, MAZE_ROWS, MAZE_COLS, direction, maze):
     Hàm này giờ sử dụng biến MOVES để code gọn gàng hơn.
     """
     row, col = start_pos
-    path_painted = set()
+    path_painted = {start_pos}
     
     # Lấy vector di chuyển từ biến MOVES
     dr, dc = MOVES[direction]
@@ -52,62 +51,28 @@ def simulate_move(start_pos, MAZE_ROWS, MAZE_COLS, direction, maze):
     return (row, col), path_painted
 
 def heuristic_is_not_done(painted_tiles, total_path_tiles):
-    return 1 if len(painted_tiles) < total_path_tiles else 0
+    if len(painted_tiles) >= len(total_path_tiles):
+        return 0
+    # Thêm tie-breaker: số ô chưa tô làm secondary metric  
+    return 1.0 + (len(total_path_tiles) - len(painted_tiles)) * 0.001
 
 def heuristic_unpainted_count(painted_tiles, total_path_tiles):
-    return total_path_tiles - len(painted_tiles)
+    return len(total_path_tiles) - len(painted_tiles)
 
-def heuristic_optimistic_moves(painted_tiles, total_path_tiles):
-    unpainted = total_path_tiles - len(painted_tiles)
-    if unpainted == 0:
-        return 0
+def heuristic_line_count(painted_tiles, total_path_tiles):
+    unpainted_tiles = total_path_tiles - painted_tiles
     
-    # Số ô tối đa có thể tô trong 1 nước đi là chiều dài hoặc chiều rộng của mê cung
-    max_paint_per_move = max(MAZE_ROWS, MAZE_COLS)
-    return math.ceil(unpainted / max_paint_per_move)
-
-def _count_unpainted_components_helper(painted_tiles, maze):
-    nodes_to_visit = set()
-    for r in range(MAZE_ROWS):
-        for c in range(MAZE_COLS):
-            # 0 là giá trị của đường đi (PATH)
-            if maze[r][c] == 0 and (r, c) not in painted_tiles:
-                nodes_to_visit.add((r, c))
-
-    if not nodes_to_visit:
+    if not unpainted_tiles:
         return 0
 
-    component_count = 0
-    moves_4_dir = [(-1, 0), (1, 0), (0, -1), (0, 1)] 
-    
-    while nodes_to_visit:
-        component_count += 1
-        start_node = nodes_to_visit.pop()
-        dq = collections.deque([start_node])
-        
-        while dq:
-            r, c = dq.popleft()
-            for dr, dc in moves_4_dir:
-                neighbor = (r + dr, c + dc)
-                if neighbor in nodes_to_visit:
-                    nodes_to_visit.remove(neighbor)
-                    dq.append(neighbor)
-    
-    return component_count
+    rows_with_unpainted_tiles = set()
+    cols_with_unpainted_tiles = set()
 
-def heuristic_unpainted_components(painted_tiles, total_path_tiles, maze):
-    unpainted_count = total_path_tiles - len(painted_tiles)
-    if unpainted_count == 0:
-        return 0
+    for r, c in unpainted_tiles:
+        rows_with_unpainted_tiles.add(r)
+        cols_with_unpainted_tiles.add(c)
 
-    return _count_unpainted_components_helper(painted_tiles, maze)  # Bỏ MAZE_ROWS, MAZE_COLS
-
-# ...existing code...
-def heuristic(painted_tiles, total_path_tiles):
-    """
-    Hàm heuristic gốc - trả về số ô chưa tô (admissible).
-    """
-    return total_path_tiles - len(painted_tiles)
+    return min(len(rows_with_unpainted_tiles), len(cols_with_unpainted_tiles))
 
 # Tìm các ô có thể tiếp cận bằng cách trượt
 def find_connected_components(maze, start_pos):
@@ -154,15 +119,12 @@ def find_connected_components(maze, start_pos):
 def get_heuristic_function(heuristic_type, maze):
     """
     Trả về hàm heuristic tương ứng với loại được chỉ định.
+    CHỈ CÓ 2 HEURISTIC: not_done và optimistic_moves
     """
+    
     if heuristic_type == "not_done":
         return lambda painted, total: heuristic_is_not_done(painted, total)
+    elif heuristic_type == "line_count":
+        return lambda painted, total: heuristic_line_count(painted, total)
     elif heuristic_type == "unpainted_count":
         return lambda painted, total: heuristic_unpainted_count(painted, total)
-    elif heuristic_type == "optimistic_moves":
-        return lambda painted, total: heuristic_optimistic_moves(painted, total)
-    elif heuristic_type == "unpainted_components":
-        return lambda painted, total: heuristic_unpainted_components(painted, total, maze)
-    else:
-        # Default fallback to original heuristic
-        return lambda painted, total: heuristic(painted, total)

@@ -2,7 +2,7 @@
 # game_manager.py - Quản lý trạng thái game và menu
 import pygame
 from Ui.menu import MainMenu
-from Ui.spaceship_selector import SpaceshipSelector
+from Ui.widgets.spaceship_selector import SpaceshipSelector
 
 class GameState:
     MENU = 0

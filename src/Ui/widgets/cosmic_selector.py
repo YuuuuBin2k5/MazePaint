@@ -1,4 +1,3 @@
-# cosmic_selector.py - Cosmic Algorithm Selector with 3D space theme
 import pygame
 import math
 import random
@@ -36,7 +35,6 @@ class CosmicAlgorithmSelector:
                         self.font_algo = pygame.font.SysFont(font_name, 32, bold=True) 
                         self.font_desc = pygame.font.SysFont(font_name, 22)
                         self.font_heuristic = pygame.font.SysFont(font_name, 24, bold=True)
-                        print(f"🚀 Using cosmic font: {font_name}")
                         font_found = True
                         break
                 except:
@@ -44,14 +42,12 @@ class CosmicAlgorithmSelector:
                     
             # Final fallback with enhanced cosmic sizes
             if not font_found:
-                print("⚠️ Using fallback fonts with cosmic enhancement")
                 self.font_title = pygame.font.Font(None, 48)
                 self.font_algo = pygame.font.Font(None, 32)
                 self.font_desc = pygame.font.Font(None, 22)
                 self.font_heuristic = pygame.font.Font(None, 24)
                 
         except Exception as e:
-            print(f"Font error: {e}")
             self.font_title = pygame.font.Font(None, 42)
             self.font_algo = pygame.font.Font(None, 28)
             self.font_desc = pygame.font.Font(None, 20)
@@ -115,23 +111,16 @@ class CosmicAlgorithmSelector:
             {
                 "name": "[2]",
                 "title": "Unpainted Count",
-                "desc": "Số ô chưa tô",
-                "color": (255, 100, 100),
+                "desc": "Đếm số ô chưa tô",
+                "color": (100, 100, 255),
                 "key": "2"
             },
             {
                 "name": "[3]",
-                "title": "Optimistic Moves",
-                "desc": "Ước tính số bước tối thiểu",
-                "color": (100, 100, 255),
+                "title": "Line Count",
+                "desc": "Ước tính số nhóm ô chưa tô",
+                "color": (255, 100, 100),
                 "key": "3"
-            },
-            {
-                "name": "[4]",
-                "title": "Unpainted Components",
-                "desc": "Số thành phần liên thông chưa tô",
-                "color": (255, 255, 100),
-                "key": "4"
             }
         ]
         
@@ -148,11 +137,11 @@ class CosmicAlgorithmSelector:
         self.heuristic_hover_index = -1
         self.heuristic_selected_index = 0
         
-        # Layout
+        # Layout - adjusted for header
         self.panel_width = 600
         self.panel_height = 500
         self.panel_x = (screen_width - self.panel_width) // 2
-        self.panel_y = (screen_height - self.panel_height) // 2
+        self.panel_y = max(50, (screen_height - self.panel_height) // 2)  # Ensure it's below header
         
         self.button_height = 60
         self.button_margin = 10
